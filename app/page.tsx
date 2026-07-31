@@ -9,6 +9,19 @@ export default function Home() {
   const [activeFaq, setActiveFaq] = useState<number | null>(null);
   const [contactForm, setContactForm] = useState({ name: "", email: "", message: "" });
   const [submitted, setSubmitted] = useState(false);
+  const [newsletterEmail, setNewsletterEmail] = useState("");
+  const [newsletterSubscribed, setNewsletterSubscribed] = useState(false);
+
+  const handleNewsletterSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (newsletterEmail) {
+      setNewsletterSubscribed(true);
+      setTimeout(() => {
+        setNewsletterSubscribed(false);
+        setNewsletterEmail("");
+      }, 3000);
+    }
+  };
 
   const toggleFaq = (index: number) => {
     setActiveFaq(activeFaq === index ? null : index);
@@ -101,7 +114,7 @@ export default function Home() {
           </p>
           <div className="flex flex-wrap gap-4 mt-2">
             <Link 
-              href="/login-request" 
+              href={isLoggedIn && user?.type === "patient" ? "/patient/appointments" : "/login-request"} 
               className="bg-[#0F62FE] text-white hover:bg-[#0353E9] px-8 py-3.5 rounded-lg text-base font-semibold shadow-md transition-all duration-200"
             >
               Book Appointment
@@ -207,7 +220,7 @@ export default function Home() {
             <h2 className="text-3xl font-extrabold text-slate-950">Our Medical Services</h2>
             <p className="text-slate-500 text-sm mt-1">Access specialized practitioner care through virtual consultations.</p>
           </div>
-          <Link href="/login-request" className="text-sm font-bold text-[#0F62FE] hover:underline">
+          <Link href={isLoggedIn && user?.type === "patient" ? "/patient/appointments" : "/login-request"} className="text-sm font-bold text-[#0F62FE] hover:underline">
             View All Services →
           </Link>
         </div>
@@ -224,7 +237,7 @@ export default function Home() {
               </div>
               <div className="p-6 flex-1 flex flex-col justify-between">
                 <p className="text-slate-600 text-sm leading-relaxed mb-6">{item.desc}</p>
-                <Link href="/login-request" className="text-sm font-bold text-[#0F62FE] hover:text-[#0353E9] flex items-center gap-1.5">
+                <Link href={isLoggedIn && user?.type === "patient" ? "/patient/appointments" : "/login-request"} className="text-sm font-bold text-[#0F62FE] hover:text-[#0353E9] flex items-center gap-1.5">
                   Book Slot
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" /></svg>
                 </Link>
@@ -394,16 +407,23 @@ export default function Home() {
           </div>
           <div>
             <h4 className="text-xs font-bold uppercase text-slate-800 tracking-wider mb-4">Newsletter</h4>
-            <div className="flex gap-2">
-              <input 
-                type="email" 
-                placeholder="Email" 
-                className="px-3 py-2 border border-slate-200 rounded-lg text-sm bg-[#F8FAFC] w-full focus:outline-none" 
-              />
-              <button className="bg-[#0F62FE] hover:bg-[#0353E9] text-white p-2 rounded-lg flex items-center justify-center">
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14 5l7 7m0 0l-7 7m7-7H3" /></svg>
-              </button>
-            </div>
+            {newsletterSubscribed ? (
+              <p className="text-emerald-600 text-xs font-bold animate-pulse">✓ Subscribed successfully!</p>
+            ) : (
+              <form onSubmit={handleNewsletterSubmit} className="flex gap-2">
+                <input 
+                  type="email" 
+                  value={newsletterEmail}
+                  onChange={e => setNewsletterEmail(e.target.value)}
+                  placeholder="Email" 
+                  className="px-3 py-2 border border-slate-200 rounded-lg text-sm bg-[#F8FAFC] w-full focus:outline-none" 
+                  required
+                />
+                <button type="submit" className="bg-[#0F62FE] hover:bg-[#0353E9] text-white p-2 rounded-lg flex items-center justify-center">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14 5l7 7m0 0l-7 7m7-7H3" /></svg>
+                </button>
+              </form>
+            )}
           </div>
         </div>
         <div className="max-w-7xl mx-auto w-full border-t border-slate-100 mt-8 pt-6 flex flex-col sm:flex-row justify-between text-xs text-slate-400">

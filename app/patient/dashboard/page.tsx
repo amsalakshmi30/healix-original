@@ -22,6 +22,11 @@ export default function PatientDashboard() {
     night: false
   });
 
+  const [dashboardSearch, setDashboardSearch] = useState("");
+  const [activeModal, setActiveModal] = useState<"none" | "lab" | "sos" | "share">("none");
+  const [emailToShare, setEmailToShare] = useState("");
+  const [shareSuccess, setShareSuccess] = useState(false);
+
   useEffect(() => {
     // Check if user is logged in
     const storedUser = localStorage.getItem("healix_user");
@@ -95,10 +100,10 @@ export default function PatientDashboard() {
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
               Appointments
             </Link>
-            <Link href="#" className="flex items-center gap-3 px-3.5 py-2.5 rounded-lg hover:bg-slate-50 transition-colors">
+            <a href="#medical-history" className="flex items-center gap-3 px-3.5 py-2.5 rounded-lg hover:bg-slate-50 transition-colors">
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
               History
-            </Link>
+            </a>
             <Link href="/patient/prescription" className="flex items-center gap-3 px-3.5 py-2.5 rounded-lg hover:bg-slate-50 transition-colors">
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
               Prescriptions
@@ -149,6 +154,13 @@ export default function PatientDashboard() {
               <input 
                 type="text" 
                 placeholder="Search records, doctors..." 
+                value={dashboardSearch}
+                onChange={(e) => setDashboardSearch(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && dashboardSearch.trim()) {
+                    router.push(`/patient/appointments?q=${encodeURIComponent(dashboardSearch)}`);
+                  }
+                }}
                 className="w-full sm:w-64 pl-9 pr-4 py-2 border border-slate-200 rounded-lg text-xs bg-slate-50 focus:outline-none focus:bg-white"
               />
             </div>
@@ -293,21 +305,21 @@ export default function PatientDashboard() {
                   <span className="text-xs font-bold text-slate-800">Refill Rx</span>
                 </Link>
 
-                <div className="flex flex-col gap-3 p-4 bg-slate-50 border border-slate-100 rounded-xl hover:bg-blue-50/50 hover:border-blue-100 transition-all cursor-pointer">
+                <div onClick={() => setActiveModal("lab")} className="flex flex-col gap-3 p-4 bg-slate-50 border border-slate-100 rounded-xl hover:bg-blue-50/50 hover:border-blue-100 transition-all cursor-pointer">
                   <div className="w-8 h-8 rounded-lg bg-blue-100 text-[#0F62FE] flex items-center justify-center">
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
                   </div>
                   <span className="text-xs font-bold text-slate-800">Lab Results</span>
                 </div>
 
-                <div className="flex flex-col gap-3 p-4 bg-slate-50 border border-slate-100 rounded-xl hover:bg-red-50/50 hover:border-red-100 transition-all cursor-pointer">
+                <div onClick={() => setActiveModal("sos")} className="flex flex-col gap-3 p-4 bg-slate-50 border border-slate-100 rounded-xl hover:bg-red-50/50 hover:border-red-100 transition-all cursor-pointer">
                   <div className="w-8 h-8 rounded-lg bg-red-100 text-red-600 flex items-center justify-center">
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
                   </div>
                   <span className="text-xs font-bold text-slate-800">SOS Contact</span>
                 </div>
 
-                <div className="flex flex-col gap-3 p-4 bg-slate-50 border border-slate-100 rounded-xl hover:bg-blue-50/50 hover:border-blue-100 transition-all cursor-pointer">
+                <div onClick={() => setActiveModal("share")} className="flex flex-col gap-3 p-4 bg-slate-50 border border-slate-100 rounded-xl hover:bg-blue-50/50 hover:border-blue-100 transition-all cursor-pointer">
                   <div className="w-8 h-8 rounded-lg bg-blue-100 text-[#0F62FE] flex items-center justify-center">
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8.684 10.742l4.8 2.4A2 2 0 1113.6 15.2a2 2 0 01-2.8-2.8l4.8-2.4a2 2 0 11.8 2.8" /></svg>
                   </div>
@@ -436,7 +448,7 @@ export default function PatientDashboard() {
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
             
             {/* Medical History */}
-            <div className="lg:col-span-8 bg-white border border-slate-200 rounded-3xl p-6 shadow-sm overflow-x-auto">
+            <div id="medical-history" className="scroll-mt-6 lg:col-span-8 bg-white border border-slate-200 rounded-3xl p-6 shadow-sm overflow-x-auto">
               <h3 className="text-sm font-bold text-slate-900 mb-4">Recent Medical History</h3>
               <table className="w-full text-left text-xs font-medium text-slate-500">
                 <thead>

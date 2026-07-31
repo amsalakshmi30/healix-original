@@ -13,6 +13,10 @@ export default function DoctorLogin() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [activeTab, setActiveTab] = useState<"login" | "register">("login");
+  const [name, setName] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [forgotPasswordMsg, setForgotPasswordMsg] = useState("");
 
   // Redirect if already logged in
   useEffect(() => {
@@ -38,6 +42,7 @@ export default function DoctorLogin() {
 
     setLoading(true);
     setError("");
+    setForgotPasswordMsg("");
 
     // Simulate login delay
     setTimeout(() => {
@@ -45,6 +50,47 @@ export default function DoctorLogin() {
       setLoading(false);
       router.push("/doctor/dashboard");
     }, 800);
+  };
+
+  const handleRegister = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!name) {
+      setError("Please enter your full professional name.");
+      return;
+    }
+    if (!email) {
+      setError("Please enter your professional email address.");
+      return;
+    }
+    if (!password) {
+      setError("Please enter a password.");
+      return;
+    }
+    if (password !== confirmPassword) {
+      setError("Passwords do not match.");
+      return;
+    }
+
+    setLoading(true);
+    setError("");
+    setForgotPasswordMsg("");
+
+    // Simulate registration delay
+    setTimeout(() => {
+      login("doctor", email, name);
+      setLoading(false);
+      router.push("/doctor/dashboard");
+    }, 800);
+  };
+
+  const handleForgotPassword = (e: React.MouseEvent) => {
+    e.preventDefault();
+    if (!email) {
+      setError("Please enter your professional email address first.");
+      return;
+    }
+    setForgotPasswordMsg(`A recovery email has been sent to: ${email}`);
+    setError("");
   };
 
   return (
@@ -113,18 +159,30 @@ export default function DoctorLogin() {
             
             {/* Tabs Selector */}
             <div className="flex gap-1.5 p-1 bg-slate-100 rounded-lg w-fit">
-              <button className="bg-white text-slate-900 text-sm font-semibold px-6 py-2 rounded-md shadow-sm">
+              <button 
+                type="button"
+                onClick={() => { setActiveTab("login"); setError(""); setForgotPasswordMsg(""); }}
+                className={`text-sm font-semibold px-6 py-2 rounded-md transition-all ${activeTab === "login" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
+              >
                 Login
               </button>
-              <button className="text-slate-500 hover:text-slate-700 text-sm font-semibold px-6 py-2">
+              <button 
+                type="button"
+                onClick={() => { setActiveTab("register"); setError(""); setForgotPasswordMsg(""); }}
+                className={`text-sm font-semibold px-6 py-2 rounded-md transition-all ${activeTab === "register" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
+              >
                 Register
               </button>
             </div>
 
             {/* Intro */}
             <div>
-              <h3 className="text-2xl font-bold text-slate-950">Practitioner Login</h3>
-              <p className="text-slate-400 text-sm mt-1">Please enter your professional credentials to access your dashboard.</p>
+              <h3 className="text-2xl font-bold text-slate-950">
+                {activeTab === "login" ? "Practitioner Login" : "Practitioner Registration"}
+              </h3>
+              <p className="text-slate-400 text-sm mt-1">
+                {activeTab === "login" ? "Please enter your professional credentials to access your dashboard." : "Join Healix Provider Network to practice telemedicine."}
+              </p>
             </div>
 
             {error && (
@@ -133,8 +191,35 @@ export default function DoctorLogin() {
               </div>
             )}
 
+            {forgotPasswordMsg && (
+              <div className="bg-emerald-50 text-emerald-800 border border-emerald-200 text-xs p-3 rounded-lg font-medium">
+                {forgotPasswordMsg}
+              </div>
+            )}
+
             {/* Form */}
-            <form onSubmit={handleLogin} className="flex flex-col gap-4">
+            <form onSubmit={activeTab === "login" ? handleLogin : handleRegister} className="flex flex-col gap-4">
+              
+              {activeTab === "register" && (
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-xs font-bold text-slate-700" htmlFor="doctor-name">Full Professional Name</label>
+                  <div className="relative">
+                    <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-400">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
+                    </span>
+                    <input
+                      type="text"
+                      id="doctor-name"
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      placeholder="Dr. Julianne Smith"
+                      className="w-full pl-10 pr-4 py-2.5 rounded-lg border border-slate-200 text-sm focus:outline-none focus:border-[#008A5E]"
+                      required
+                    />
+                  </div>
+                </div>
+              )}
+
               <div className="flex flex-col gap-1.5">
                 <label className="text-xs font-bold text-slate-700" htmlFor="doctor-email">Work Email Address</label>
                 <div className="relative">
@@ -156,7 +241,9 @@ export default function DoctorLogin() {
               <div className="flex flex-col gap-1.5">
                 <div className="flex justify-between items-center">
                   <label className="text-xs font-bold text-slate-700" htmlFor="doctor-password">Password</label>
-                  <a href="#" className="text-xs font-bold text-[#008A5E] hover:underline">Forgot Password?</a>
+                  {activeTab === "login" && (
+                    <a href="#" onClick={handleForgotPassword} className="text-xs font-bold text-[#008A5E] hover:underline">Forgot Password?</a>
+                  )}
                 </div>
                 <div className="relative">
                   <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-400">
@@ -174,25 +261,49 @@ export default function DoctorLogin() {
                 </div>
               </div>
 
+              {activeTab === "register" && (
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-xs font-bold text-slate-700" htmlFor="confirm-password-input">Confirm Password</label>
+                  <div className="relative">
+                    <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-400">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
+                    </span>
+                    <input
+                      type="password"
+                      id="confirm-password-input"
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      placeholder="••••••••"
+                      className="w-full pl-10 pr-4 py-2.5 rounded-lg border border-slate-200 text-sm focus:outline-none focus:border-[#008A5E]"
+                      required
+                    />
+                  </div>
+                </div>
+              )}
+
               {/* Remember checkbox */}
-              <div className="flex items-center gap-2.5 py-1">
-                <input
-                  type="checkbox"
-                  id="remember-doctor"
-                  className="w-4 h-4 rounded text-[#008A5E] focus:ring-[#008A5E] border-slate-300"
-                  defaultChecked
-                />
-                <label htmlFor="remember-doctor" className="text-xs font-semibold text-slate-500">
-                  Remember my workstation for 30 days
-                </label>
-              </div>
+              {activeTab === "login" && (
+                <div className="flex items-center gap-2.5 py-1">
+                  <input
+                    type="checkbox"
+                    id="remember-doctor"
+                    className="w-4 h-4 rounded text-[#008A5E] focus:ring-[#008A5E] border-slate-300"
+                    defaultChecked
+                  />
+                  <label htmlFor="remember-doctor" className="text-xs font-semibold text-slate-500">
+                    Remember my workstation for 30 days
+                  </label>
+                </div>
+              )}
 
               <button
                 type="submit"
                 disabled={loading}
                 className="w-full bg-[#008A5E] hover:bg-[#00704c] text-white font-semibold text-sm py-3 px-6 rounded-xl flex items-center justify-center gap-2 transition-all mt-2 shadow-sm disabled:bg-emerald-400"
               >
-                {loading ? "Authenticating..." : "Practitioner Sign In"}
+                {loading 
+                  ? (activeTab === "login" ? "Authenticating..." : "Registering...") 
+                  : (activeTab === "login" ? "Practitioner Sign In" : "Register Practitioner")}
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
               </button>
             </form>
