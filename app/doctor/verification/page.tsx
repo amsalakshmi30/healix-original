@@ -306,9 +306,9 @@ export default function DoctorVerification() {
               <span className="bg-blue-50 text-[#0F62FE] text-[10px] font-bold px-2.5 py-1 rounded-full uppercase">
                 Submitted Successfully
               </span>
-              <h3 className="text-xl font-extrabold text-slate-900 mt-3">Documents Under Review</h3>
+              <h3 className="text-xl font-extrabold text-slate-900 mt-3">Application Received</h3>
               <p className="text-xs text-slate-500 leading-relaxed mt-2.5 font-semibold px-4">
-                "You will receive an email regarding your verification within 24 hours."
+                Your application has been received and sent to your hospital for verification. You will receive an email within 24 hours.
               </p>
             </div>
 

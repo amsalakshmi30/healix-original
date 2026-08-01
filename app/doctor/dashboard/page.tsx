@@ -146,15 +146,15 @@ export default function DoctorDashboard() {
           </div>
 
           {/* Doctor Profile Header banner */}
-          <div className="flex items-center gap-3 p-3 bg-slate-50 border border-slate-100 rounded-xl">
-            <div className="w-10 h-10 rounded-full bg-emerald-100 text-[#008A5E] flex items-center justify-center font-bold text-sm">
+          <Link href="/doctor/profile-registration" className="flex items-center gap-3 p-3 bg-slate-50 border border-slate-100 rounded-xl hover:bg-slate-100/70 transition-all cursor-pointer w-full text-left">
+            <div className="w-10 h-10 rounded-full bg-emerald-100 text-[#008A5E] flex items-center justify-center font-bold text-sm shrink-0">
               JS
             </div>
             <div>
               <h4 className="text-xs font-bold text-slate-900">{user?.name || "Dr. Julianne Smith"}</h4>
               <p className="text-[10px] text-slate-400 font-medium">{doctorProfile?.specialization || "Cardiology Specialist"}</p>
             </div>
-          </div>
+          </Link>
 
           {/* Sidebar Nav */}
           <nav className="flex flex-col gap-1 text-slate-500 font-medium text-xs">
@@ -162,15 +162,15 @@ export default function DoctorDashboard() {
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2H6a2 2 0 01-2-2v-4zM14 16a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2h-2a2 2 0 01-2-2v-4z" /></svg>
               Dashboard
             </Link>
-            <Link href="#" className="flex items-center gap-3 px-3.5 py-2.5 rounded-lg hover:bg-slate-50 transition-colors">
+            <Link href="/doctor/appointments" className="flex items-center gap-3 px-3.5 py-2.5 rounded-lg hover:bg-slate-50 transition-colors">
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
               Appointments
             </Link>
-            <Link href="#" className="flex items-center gap-3 px-3.5 py-2.5 rounded-lg hover:bg-slate-50 transition-colors">
+            <Link href="/doctor/patients" className="flex items-center gap-3 px-3.5 py-2.5 rounded-lg hover:bg-slate-50 transition-colors">
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
               Patients
             </Link>
-            <Link href="#" className="flex items-center gap-3 px-3.5 py-2.5 rounded-lg hover:bg-slate-50 transition-colors">
+            <Link href="/doctor/analytics" className="flex items-center gap-3 px-3.5 py-2.5 rounded-lg hover:bg-slate-50 transition-colors">
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>
               Analytics
             </Link>
@@ -179,10 +179,10 @@ export default function DoctorDashboard() {
 
         {/* Bottom support/signout */}
         <div className="flex flex-col gap-1 text-slate-500 font-medium text-xs border-t border-slate-100 pt-6">
-          <Link href="#" className="flex items-center gap-3 px-3.5 py-2.5 rounded-lg hover:bg-slate-50 transition-colors">
+          <a href="mailto:support@healix.com" className="flex items-center gap-3 px-3.5 py-2.5 rounded-lg hover:bg-slate-50 transition-colors w-full text-left">
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M18.364 5.636l-3.536 3.536m0 5.656l3.536 3.536M9.172 9.172L5.636 5.636m3.536 9.192l-3.536 3.536M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-5 0a4 4 0 11-8 0 4 4 0 018 0z" /></svg>
             Support Desk
-          </Link>
+          </a>
           <button onClick={logout} className="flex items-center gap-3 px-3.5 py-2.5 rounded-lg text-red-600 hover:bg-red-50 transition-colors w-full text-left font-bold">
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
             Sign Out
@@ -352,7 +352,7 @@ export default function DoctorDashboard() {
                     <h3 className="text-sm font-bold text-slate-900">Patients in Waiting Room</h3>
                     <p className="text-[10px] text-slate-400 font-medium">Active queue of patients ready for video consult</p>
                   </div>
-                  <button className="text-xs font-bold text-[#0F62FE] hover:underline">View All</button>
+                  <Link href="/doctor/waiting-room" className="text-xs font-bold text-[#0F62FE] hover:underline">View All</Link>
                 </div>
 
                 {isFullyUnlocked ? (

@@ -44,7 +44,7 @@ export default function DoctorLogin() {
     try {
       if (isRegister) {
         // Sign up logic
-        const { error: signUpError } = await supabase.auth.signUp({
+        const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
           email,
           password,
           options: {
@@ -56,8 +56,8 @@ export default function DoctorLogin() {
           },
         });
         if (signUpError) throw signUpError;
-        alert("Practitioner registration successful! You can now log in.");
-        setIsRegister(false);
+        login("doctor", email, email.split("@")[0]);
+        router.push("/doctor/profile-registration");
       } else {
         // Sign in logic
         const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
@@ -302,9 +302,9 @@ export default function DoctorLogin() {
 
             {/* Footer links */}
             <div className="flex flex-wrap justify-between text-[11px] text-slate-400 mt-6 pt-6 border-t border-slate-100">
-              <Link href="#" className="hover:underline">Privacy Policy</Link>
-              <Link href="#" className="hover:underline">Contact Support</Link>
-              <Link href="#" className="hover:underline">System Status</Link>
+              <Link href="/" className="hover:underline">Privacy Policy</Link>
+              <a href="mailto:support@healix.com" className="hover:underline">Contact Support</a>
+              <Link href="/" className="hover:underline">System Status</Link>
             </div>
             
           </div>

@@ -5,6 +5,12 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useApp } from "@/app/context/AppContext";
 
+interface ChatMsg {
+  sender: "doctor" | "patient";
+  text: string;
+  time: string;
+}
+
 export default function DoctorVideoCall() {
   const { logout, activeConsultationPatient } = useApp();
   const router = useRouter();
@@ -16,6 +22,15 @@ export default function DoctorVideoCall() {
   const [hasPermission, setHasPermission] = useState<boolean | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
 
+  // Chat and Voice Dictation States
+  const [messages, setMessages] = useState<ChatMsg[]>([
+    { sender: "patient", text: "Hello doctor, I checked in. Ready when you are.", time: "10:30 AM" },
+    { sender: "doctor", text: "Welcome. Let's look over your cardiovascular vitals.", time: "10:31 AM" }
+  ]);
+  const [newMsg, setNewMsg] = useState("");
+  const [recognizing, setRecognizing] = useState(false);
+  const recognitionRef = useRef<any>(null);
+
   const pat = activeConsultationPatient || {
     name: "Liam Chen",
     age: 34,
@@ -23,6 +38,38 @@ export default function DoctorVideoCall() {
     id: "HX-88291",
     bloodType: "A+",
     weight: "82 kg"
+  };
+
+  // Speech Recognition initialization
+  useEffect(() => {
+    if (typeof window !== "undefined" && ("SpeechRecognition" in window || "webkitSpeechRecognition" in window)) {
+      const SpeechRec = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+      const rec = new SpeechRec();
+      rec.continuous = false;
+      rec.interimResults = false;
+      rec.lang = "en-US";
+
+      rec.onstart = () => setRecognizing(true);
+      rec.onend = () => setRecognizing(false);
+      rec.onerror = (e: any) => console.error("Speech Recognition Error:", e);
+      rec.onresult = (event: any) => {
+        const transcript = event.results[0][0].transcript;
+        setNewMsg((prev) => prev + (prev ? " " : "") + transcript);
+      };
+      recognitionRef.current = rec;
+    }
+  }, []);
+
+  const handleSpeech = () => {
+    if (recognitionRef.current) {
+      if (recognizing) {
+        recognitionRef.current.stop();
+      } else {
+        recognitionRef.current.start();
+      }
+    } else {
+      alert("Speech recognition is not supported in this browser. Please try Google Chrome.");
+    }
   };
 
   const requestPermissions = async () => {
@@ -36,7 +83,7 @@ export default function DoctorVideoCall() {
       setMediaStream(stream);
       streamRef.current = stream;
 
-      // Apply initial toggles
+      // Apply initial mute/toggle states
       const audioTrack = stream.getAudioTracks()[0];
       if (audioTrack) audioTrack.enabled = !micMuted;
 
@@ -50,12 +97,11 @@ export default function DoctorVideoCall() {
         }
       }, 100);
     } catch (err) {
-      console.error("Camera/Mic access failed inside practitioner consultation:", err);
+      console.error("Camera/Mic access failed inside consultation:", err);
       setHasPermission(false);
     }
   };
 
-  // Video and voice consultation camera setup on mount
   useEffect(() => {
     requestPermissions();
     return () => {
@@ -65,7 +111,7 @@ export default function DoctorVideoCall() {
     };
   }, []);
 
-  // Update track enabled state on control toggles
+  // Update track active state on button toggle
   useEffect(() => {
     if (mediaStream) {
       const audioTrack = mediaStream.getAudioTracks()[0];
@@ -79,6 +125,27 @@ export default function DoctorVideoCall() {
       if (videoTrack) videoTrack.enabled = !camOff;
     }
   }, [camOff, mediaStream]);
+
+  const handleSend = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (newMsg.trim()) {
+      const timeStr = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+      setMessages((prev) => [...prev, { sender: "doctor", text: newMsg, time: timeStr }]);
+      setNewMsg("");
+
+      // Simulate patient response
+      setTimeout(() => {
+        setMessages((prev) => [
+          ...prev,
+          { sender: "patient", text: "Understood, thank you doctor.", time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) }
+        ]);
+      }, 1500);
+    }
+  };
+
+  const selectQuickReply = (text: string) => {
+    setNewMsg(text);
+  };
 
   const handleEndCall = () => {
     if (mediaStream) {
@@ -151,7 +218,9 @@ export default function DoctorVideoCall() {
                   disabled={hasPermission !== true}
                   className={`w-11 h-11 rounded-full flex flex-col items-center justify-center border transition-all text-white disabled:opacity-50 disabled:cursor-not-allowed ${micMuted ? 'bg-red-500/80 border-red-600' : 'bg-white/10 border-white/10 hover:bg-white/20'}`}
                 >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" /></svg>
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+                  </svg>
                   <span className="text-[7px] uppercase font-bold mt-0.5">{micMuted ? 'Muted' : 'Mute'}</span>
                 </button>
 
@@ -161,13 +230,17 @@ export default function DoctorVideoCall() {
                   disabled={hasPermission !== true}
                   className={`w-11 h-11 rounded-full flex flex-col items-center justify-center border transition-all text-white disabled:opacity-50 disabled:cursor-not-allowed ${camOff ? 'bg-red-500/80 border-red-600' : 'bg-white/10 border-white/10 hover:bg-white/20'}`}
                 >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                  </svg>
                   <span className="text-[7px] uppercase font-bold mt-0.5">{camOff ? 'Off' : 'Camera'}</span>
                 </button>
 
                 {/* Share */}
                 <button className="w-11 h-11 rounded-full flex flex-col items-center justify-center border border-white/10 bg-white/10 text-white hover:bg-white/20 transition-all">
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                  </svg>
                   <span className="text-[7px] uppercase font-bold mt-0.5">Share</span>
                 </button>
 
@@ -178,7 +251,9 @@ export default function DoctorVideoCall() {
                   onClick={handleEndCall}
                   className="bg-red-600 hover:bg-red-700 text-white font-bold px-6 py-2.5 rounded-full flex items-center gap-1.5 shadow transition-all border border-red-700"
                 >
-                  <svg className="w-4 h-4 transform rotate-135" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.94.725l.548 2.2a1 1 0 01-.321.988l-1.305.98a10.582 10.582 0 004.872 4.872l.98-1.305a1 1 0 01.988-.321l2.2.548a1 1 0 01.725.94V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" /></svg>
+                  <svg className="w-4 h-4 transform rotate-135" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.94.725l.548 2.2a1 1 0 01-.321.988l-1.305.98a10.582 10.582 0 004.872 4.872l.98-1.305a1 1 0 01.988-.321l2.2.548a1 1 0 01.725.94V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                  </svg>
                   <span className="text-xs font-bold uppercase tracking-wider">End Call</span>
                 </button>
 
@@ -189,74 +264,87 @@ export default function DoctorVideoCall() {
 
         </div>
 
-        {/* Right Side: Patient Vitals & History sidebar */}
-        <aside className="w-80 bg-white border-l border-slate-200 h-full flex flex-col justify-between shrink-0 shadow-sm overflow-y-auto">
+        {/* Right Side: Chat & Sample Replies sidebar */}
+        <aside className="w-80 bg-white border-l border-slate-200 h-full flex flex-col justify-between shrink-0 shadow-sm overflow-hidden">
           
-          <div className="flex flex-col gap-6">
+          <div className="flex flex-col flex-1 min-h-0">
             
             {/* Header Status */}
             <div className="bg-[#0f62fe] text-white p-4 text-center">
-              <span className="text-xs font-bold uppercase tracking-wider block">Patient is ready</span>
+              <span className="text-xs font-bold uppercase tracking-wider block">Live Chat Sidebar</span>
             </div>
 
-            {/* Profile */}
-            <div className="p-4 border-b border-slate-100 flex flex-col gap-3">
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Patient Details</span>
-              
-              <div className="flex items-center gap-4">
-                <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center font-bold text-slate-700 text-sm">
-                  {pat.name.split(" ").slice(-1)[0][0] || "P"}
-                </div>
-                <div>
-                  <h4 className="text-sm font-bold text-slate-900">{pat.name}</h4>
-                  <p className="text-[10px] text-slate-400 font-semibold mt-0.5">ID: {pat.id} • {pat.gender}, {pat.age}</p>
-                </div>
-              </div>
-
-              <div className="flex flex-col gap-2.5 mt-3 text-xs font-semibold text-slate-500">
-                <div className="flex justify-between">
-                  <span>Appointment Time</span>
-                  <span className="text-slate-800 font-bold">Today, 2:30 PM - 3:00 PM</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Reason for Visit</span>
-                  <span className="text-slate-800 font-bold">Cardiovascular Follow-up</span>
-                </div>
-              </div>
+            {/* Messages box */}
+            <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-4">
+              {messages.map((msg, idx) => {
+                const isDoc = msg.sender === "doctor";
+                return (
+                  <div key={idx} className={`flex flex-col ${isDoc ? "items-end" : "items-start"}`}>
+                    <div className={`p-3 rounded-2xl text-xs max-w-[220px] font-semibold leading-relaxed ${isDoc ? "bg-[#0F62FE] text-white rounded-tr-none" : "bg-slate-100 text-slate-800 rounded-tl-none"}`}>
+                      {msg.text}
+                    </div>
+                    <span className="text-[8px] text-slate-400 font-bold mt-1 px-1">{msg.time}</span>
+                  </div>
+                );
+              })}
             </div>
 
-            {/* Vitals */}
-            <div className="px-4 py-2 border-b border-slate-100 flex flex-col gap-3">
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Vitals & History</span>
-              
-              <div className="grid grid-cols-2 gap-4">
-                <div className="p-3.5 bg-slate-50 border border-slate-100 rounded-xl">
-                  <span className="text-[8px] text-slate-400 uppercase font-bold tracking-wider">Blood Pressure</span>
-                  <p className="text-base font-extrabold text-emerald-600 mt-1">120/80</p>
-                </div>
-                <div className="p-3.5 bg-slate-50 border border-slate-100 rounded-xl">
-                  <span className="text-[8px] text-slate-400 uppercase font-bold tracking-wider">Heart Rate</span>
-                  <p className="text-base font-extrabold text-emerald-600 mt-1">72 bpm</p>
-                </div>
+            {/* Quick Sample replies block */}
+            <div className="p-3 border-t border-slate-100 bg-slate-50 flex flex-col gap-1.5">
+              <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wide">Quick Consultation Phrases</span>
+              <div className="flex flex-wrap gap-1">
+                {[
+                  "Please take a deep breath.",
+                  "I am updating your prescription now.",
+                  "Are you experiencing chest pain?"
+                ].map((phr) => (
+                  <button 
+                    key={phr} 
+                    type="button" 
+                    onClick={() => selectQuickReply(phr)}
+                    className="bg-white border border-slate-200 hover:border-blue-400 text-slate-600 text-[9px] font-bold px-2 py-1 rounded-lg text-left truncate max-w-full block"
+                  >
+                    {phr}
+                  </button>
+                ))}
               </div>
             </div>
 
-            {/* Clinical summary */}
-            <div className="p-4 flex flex-col gap-3">
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Medical History</span>
-              <p className="text-xs text-slate-500 leading-relaxed font-semibold">
-                Patient reports consistent improvement in exercise tolerance after starting new regimen. No episodes of palpitations noted in last 48 hours.
-              </p>
+            {/* Text message chat form */}
+            <form onSubmit={handleSend} className="p-3 border-t border-slate-100 flex gap-2 items-center bg-white">
               
-              <button className="text-xs font-bold text-[#0F62FE] hover:underline self-start mt-2">
-                View Full Medical Record &gt;
+              {/* Voice input dictate button */}
+              <button 
+                type="button" 
+                onClick={handleSpeech}
+                title="Voice Dictate"
+                className={`p-2 rounded-xl border flex items-center justify-center transition-colors shrink-0 ${recognizing ? "bg-red-100 text-red-600 border-red-300 animate-pulse" : "bg-slate-50 hover:bg-slate-100 text-slate-500 border-slate-200"}`}
+              >
+                🎤
               </button>
-            </div>
+
+              <input
+                type="text"
+                placeholder="Type your message..."
+                value={newMsg}
+                onChange={(e) => setNewMsg(e.target.value)}
+                className="flex-1 bg-slate-50 border border-slate-200 px-3 py-2.5 rounded-xl text-xs focus:outline-none focus:bg-white text-slate-800 font-semibold"
+              />
+
+              <button 
+                type="submit" 
+                className="bg-[#0F62FE] hover:bg-[#0353E9] text-white p-2.5 rounded-xl flex items-center justify-center shrink-0"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                </svg>
+              </button>
+            </form>
 
           </div>
 
-          <div className="p-4 text-center border-t border-slate-100 text-[10px] text-slate-400 font-bold uppercase">
-            🛡️ HIPAA Compliant Session
+          <div className="p-3.5 text-center border-t border-slate-100 text-[9px] text-slate-400 font-bold uppercase bg-slate-50">
+            🛡️ Secure Telehealth Feed
           </div>
 
         </aside>
