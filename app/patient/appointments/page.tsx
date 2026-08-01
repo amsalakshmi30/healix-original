@@ -4,6 +4,7 @@ import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useApp } from "@/app/context/AppContext";
+import { supabase } from "@/lib/lib/supabase";
 
 interface Doctor {
   id: string;
@@ -92,12 +93,45 @@ export default function DoctorSearch() {
     }
   ];
 
+  const [dbDoctors, setDbDoctors] = useState<Doctor[]>([]);
+
+  useEffect(() => {
+    const fetchDoctors = async () => {
+      try {
+        const { data, error } = await supabase
+          .from("doctors")
+          .select("*, profiles(avatar_url)");
+
+        if (data && data.length > 0) {
+          const formatted: Doctor[] = data.map((docData: any) => ({
+            id: docData.id,
+            name: docData.name,
+            specialization: docData.specialization || "Practitioner",
+            rating: Number(docData.rating) || 5.0,
+            reviews: docData.reviews_count || "0 Reviews",
+            experience: docData.experience ? `${docData.experience} Years Exp` : "N/A",
+            languages: docData.languages || ["English"],
+            fee: docData.fee ? (docData.fee.startsWith("$") ? docData.fee : `$${docData.fee}`) : "$150.00",
+            avatar: docData.profiles?.avatar_url || "/doc-sarah.jpg",
+            desc: docData.bio || "",
+          }));
+          setDbDoctors(formatted);
+        }
+      } catch (err) {
+        console.error("Error loading doctors from Supabase:", err);
+      }
+    };
+    fetchDoctors();
+  }, []);
+
   const handleViewProfile = (doctor: Doctor) => {
     setSelectedDoctor(doctor);
     router.push("/patient/doctor-profile");
   };
 
-  const filteredDoctors = doctors.filter((doc) => {
+  const activeDoctorsList = dbDoctors.length > 0 ? dbDoctors : doctors;
+
+  const filteredDoctors = activeDoctorsList.filter((doc) => {
     const matchesSearch = doc.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
                           doc.specialization.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesSpec = selectedSpecialization === "All Specializations" || 

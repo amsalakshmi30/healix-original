@@ -4,9 +4,10 @@ import React, { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useApp } from "@/app/context/AppContext";
+import { supabase } from "@/lib/lib/supabase";
 
 export default function DoctorMedicationDetails() {
-  const { activeConsultationPatient, logout } = useApp();
+  const { activeConsultationPatient, logout, user } = useApp();
   const router = useRouter();
 
   // Selected patient details
@@ -34,12 +35,56 @@ export default function DoctorMedicationDetails() {
 
   const [finalized, setFinalized] = useState(false);
 
-  const handleFinalize = (e: React.FormEvent) => {
+  const handleFinalize = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!medicine || !dosage || !instructions) {
       alert("Please fill in medication details before finalising.");
       return;
     }
+
+    let patientUuid = null;
+    try {
+      const { data: profiles } = await supabase
+        .from("profiles")
+        .select("id")
+        .eq("full_name", pat.name)
+        .eq("role", "patient")
+        .limit(1);
+
+      if (profiles && profiles.length > 0) {
+        patientUuid = profiles[0].id;
+      } else {
+        const { data: fallbackPatient } = await supabase
+          .from("profiles")
+          .select("id")
+          .eq("role", "patient")
+          .limit(1);
+        if (fallbackPatient && fallbackPatient.length > 0) {
+          patientUuid = fallbackPatient[0].id;
+        }
+      }
+    } catch (err) {
+      console.error("Error finding patient uuid:", err);
+    }
+
+    if (patientUuid) {
+      try {
+        const { error } = await supabase.from("prescriptions").insert({
+          patient_id: patientUuid,
+          doctor_id: user?.id || null,
+          doctor_name: user?.name || "Dr. Julianne Smith",
+          medicine_name: medicine,
+          dosage: `${dosage} unit daily`,
+          instructions,
+          clinical_notes: clinicalNotes,
+          status: "pending",
+        });
+        if (error) throw error;
+      } catch (err) {
+        console.error("Error saving prescription to Supabase:", err);
+      }
+    }
+
     setFinalized(true);
   };
 

@@ -1,9 +1,10 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useApp } from "@/app/context/AppContext";
+import { supabase } from "@/lib/supabase";
 
 interface ChatMessage {
   sender: "doctor" | "patient";
@@ -12,12 +13,13 @@ interface ChatMessage {
 }
 
 export default function VideoCall() {
-  const { logout } = useApp();
+  const { logout, user } = useApp();
   const router = useRouter();
 
   // Control toggles
   const [micMuted, setMicMuted] = useState(false);
   const [camOff, setCamOff] = useState(false);
+  const [mediaStream, setMediaStream] = useState<MediaStream | null>(null);
 
   // Chat message simulator
   const [messages, setMessages] = useState<ChatMessage[]>([
@@ -25,6 +27,41 @@ export default function VideoCall() {
     { sender: "patient", text: "A bit better, but the fatigue is still persistent in the mornings.", time: "10:03 AM" }
   ]);
   const [newMsg, setNewMsg] = useState("");
+
+  // Handle active media stream in the call
+  useEffect(() => {
+    let activeStream: MediaStream | null = null;
+    const startMedia = async () => {
+      if (!camOff) {
+        try {
+          activeStream = await navigator.mediaDevices.getUserMedia({
+            video: true,
+            audio: !micMuted
+          });
+          setMediaStream(activeStream);
+          setTimeout(() => {
+            const videoEl = document.getElementById("call-self-video") as HTMLVideoElement;
+            if (videoEl) {
+              videoEl.srcObject = activeStream;
+            }
+          }, 100);
+        } catch (err) {
+          console.error("Camera access failed inside consultation:", err);
+        }
+      } else {
+        if (mediaStream) {
+          mediaStream.getTracks().forEach((t) => t.stop());
+          setMediaStream(null);
+        }
+      }
+    };
+    startMedia();
+    return () => {
+      if (activeStream) {
+        activeStream.getTracks().forEach((t) => t.stop());
+      }
+    };
+  }, [camOff, micMuted]);
 
   const handleSend = (e: React.FormEvent) => {
     e.preventDefault();
@@ -44,7 +81,26 @@ export default function VideoCall() {
     }
   };
 
-  const handleEndCall = () => {
+  const handleEndCall = async () => {
+    if (mediaStream) {
+      mediaStream.getTracks().forEach((track) => track.stop());
+    }
+
+    // Save Consultation details in Supabase before exiting
+    try {
+      if (user?.id) {
+        await supabase.from("consultations").insert({
+          patient_id: user.id,
+          doctor_name: "Dr. Sarah Jenkins",
+          room_id: "Room-#402",
+          status: "completed",
+          notes: "Patient reported persistent morning fatigue. Lisinopril dosage adjusted."
+        });
+      }
+    } catch (err) {
+      console.error("Error saving consultation logs in Supabase:", err);
+    }
+
     router.push("/patient/dashboard");
   };
 
@@ -78,9 +134,7 @@ export default function VideoCall() {
                 {/* Self preview inset in top right */}
                 {!camOff && (
                   <div className="absolute top-6 right-6 w-32 aspect-video bg-slate-800 border-2 border-white/20 rounded-2xl overflow-hidden shadow-lg z-10">
-                    <div className="w-full h-full bg-slate-750 flex items-center justify-center text-[10px] text-white font-bold">
-                      You (Self)
-                    </div>
+                    <video id="call-self-video" autoPlay playsInline muted className="w-full h-full object-cover bg-slate-900" />
                   </div>
                 )}
 

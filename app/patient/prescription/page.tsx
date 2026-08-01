@@ -4,37 +4,142 @@ import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useApp } from "@/app/context/AppContext";
+import { supabase } from "@/lib/supabase";
 
 export default function PrescriptionCart() {
-  const { prescriptionCart, updateCartQuantity, clearCart, logout } = useApp();
+  const { prescriptionCart, updateCartQuantity, clearCart, logout, user, setPrescriptionCart } = useApp();
   const router = useRouter();
 
   // Tab state
   const [activeTab, setActiveTab] = useState("clinic");
   
-  // Checkout options
+  // Checkout & Payment details
   const [address, setAddress] = useState("home");
+  const [paymentMethod, setPaymentMethod] = useState<"upi" | "card" | "net_banking">("card");
+  const [upiId, setUpiId] = useState("");
+  const [cardNumber, setCardNumber] = useState("");
+  const [cardExpiry, setCardExpiry] = useState("");
+  const [cardCvv, setCardCvv] = useState("");
+  const [selectedBank, setSelectedBank] = useState("Chase Bank");
   
-  // Payment states: 'cart' | 'scanning' | 'success'
-  const [checkoutState, setCheckoutState] = useState<"cart" | "scanning" | "success">("cart");
+  // States: 'cart' | 'checkout' | 'scanning' | 'success'
+  const [checkoutState, setCheckoutState] = useState<"cart" | "checkout" | "scanning" | "success">("cart");
+  const [generatedOrderId, setGeneratedOrderId] = useState("HLX-000000");
+
+  // Prescribed medicines from Supabase state
+  const [prescribedMedicines, setPrescribedMedicines] = useState<any[]>([]);
+  const [loadingDbMeds, setLoadingDbMeds] = useState(true);
+
+  // Fetch prescriptions on mount
+  useEffect(() => {
+    const fetchPrescribed = async () => {
+      if (!user?.id) {
+        setLoadingDbMeds(false);
+        return;
+      }
+      try {
+        const { data, error } = await supabase
+          .from("prescriptions")
+          .select("*")
+          .eq("patient_id", user.id)
+          .eq("status", "pending");
+
+        if (error) throw error;
+
+        if (data && data.length > 0) {
+          setPrescribedMedicines(data);
+        } else {
+          // Fallback static medicines list
+          setPrescribedMedicines([
+            { id: "1", medicine_name: "Amoxicillin 500mg", dosage: "1 Tablet Daily", instructions: "10-day course" },
+            { id: "2", medicine_name: "Lisinopril 10mg", dosage: "1 Tablet Daily", instructions: "30-day course" },
+            { id: "3", medicine_name: "Inhaler - Albuterol", dosage: "As needed for symptoms", instructions: "200 Doses" }
+          ]);
+        }
+      } catch (err) {
+        console.error("Error fetching prescriptions:", err);
+        // Fallback static list
+        setPrescribedMedicines([
+          { id: "1", medicine_name: "Amoxicillin 500mg", dosage: "1 Tablet Daily", instructions: "10-day course" },
+          { id: "2", medicine_name: "Lisinopril 10mg", dosage: "1 Tablet Daily", instructions: "30-day course" },
+          { id: "3", medicine_name: "Inhaler - Albuterol", dosage: "As needed for symptoms", instructions: "200 Doses" }
+        ]);
+      } finally {
+        setLoadingDbMeds(false);
+      }
+    };
+    fetchPrescribed();
+  }, [user]);
 
   // Calculations
   const subtotal = prescriptionCart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
   const serviceFee = prescriptionCart.length > 0 ? 2.00 : 0;
   const total = subtotal + serviceFee;
 
+  const handleProceedToPayment = () => {
+    setCheckoutState("checkout");
+  };
+
   const handleCheckout = () => {
+    // Generate real order ID
+    const randomNum = Math.floor(100000 + Math.random() * 900000);
+    const orderId = `HLX-${randomNum}`;
+    setGeneratedOrderId(orderId);
     setCheckoutState("scanning");
   };
 
   useEffect(() => {
     if (checkoutState === "scanning") {
-      const timer = setTimeout(() => {
+      const timer = setTimeout(async () => {
+        try {
+          const patientId = user?.id || null;
+          
+          // Save Order details in Supabase
+          const { data: orderData, error: orderError } = await supabase
+            .from("orders")
+            .insert({
+              id: generatedOrderId,
+              user_id: patientId,
+              patient_name: user?.name || "Patient",
+              patient_email: user?.email || "patient@healix.com",
+              total_amount: total,
+              status: "paid",
+              items: prescriptionCart
+            })
+            .select();
+
+          if (orderError) console.error("Error creating order:", orderError.message);
+
+          // Save Payment details in Supabase
+          const { error: paymentError } = await supabase
+            .from("payments")
+            .insert({
+              order_id: generatedOrderId,
+              user_id: patientId,
+              payment_method: paymentMethod,
+              status: "success",
+              amount: total
+            });
+
+          if (paymentError) console.error("Error creating payment:", paymentError.message);
+
+          // Update prescription status to completed
+          const ids = prescriptionCart.map((item) => item.id);
+          const validIds = ids.filter((id) => id && id.length === 36);
+          if (validIds.length > 0) {
+            await supabase
+              .from("prescriptions")
+              .update({ status: "completed" })
+              .in("id", validIds);
+          }
+        } catch (err) {
+          console.error("Error executing checkout transactions in Supabase:", err);
+        }
         setCheckoutState("success");
       }, 3000);
       return () => clearTimeout(timer);
     }
-  }, [checkoutState]);
+  }, [checkoutState, prescriptionCart, generatedOrderId, paymentMethod, total, user]);
 
   const handleProceedToRx = () => {
     clearCart();
@@ -109,11 +214,11 @@ export default function PrescriptionCart() {
           </div>
         </header>
 
-        {/* Content Container */}
+        {/* Cart View */}
         {checkoutState === "cart" && (
-          <div className="p-6 max-w-7xl mx-auto w-full grid grid-cols-1 lg:grid-cols-12 gap-8">
+          <div className="p-6 max-w-7xl mx-auto w-full grid grid-cols-1 lg:grid-cols-12 gap-8 animate-fade-in">
             
-            {/* Left side: Cart List */}
+            {/* Left side: Prescriptions & Cart */}
             <div className="lg:col-span-8 flex flex-col gap-6">
               
               {/* Tab Selector */}
@@ -134,12 +239,56 @@ export default function PrescriptionCart() {
                 </button>
               </div>
 
-              {/* Cart Items list */}
+              {/* List of Prescribed Medicines */}
+              <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm flex flex-col gap-4">
+                <h3 className="text-sm font-bold text-slate-900">1. Prescribed Medicines (From Doctor)</h3>
+                <span className="text-[10px] text-slate-400 -mt-2 block font-medium">Add doctor-prescribed items to your shopping cart below.</span>
+                
+                {loadingDbMeds ? (
+                  <span className="text-xs text-slate-400 py-4 block">Loading prescriptions...</span>
+                ) : (
+                  <div className="flex flex-col gap-3">
+                    {prescribedMedicines.map((med) => {
+                      const isInCart = prescriptionCart.some((item) => item.name === med.medicine_name);
+                      return (
+                        <div key={med.id} className="flex justify-between items-center p-3.5 border border-slate-100 rounded-2xl bg-slate-50/50">
+                          <div>
+                            <h4 className="text-xs font-bold text-slate-900">{med.medicine_name}</h4>
+                            <p className="text-[10px] text-slate-400 mt-0.5 font-medium">{med.instructions} • {med.dosage}</p>
+                          </div>
+                          <button
+                            disabled={isInCart}
+                            onClick={() => {
+                              const price = med.medicine_name.includes("Amoxicillin") ? 24.00 : med.medicine_name.includes("Lisinopril") ? 9.25 : 45.00;
+                              setPrescriptionCart((prev) => [
+                                ...prev,
+                                {
+                                  id: med.id,
+                                  name: med.medicine_name,
+                                  dosage: med.dosage,
+                                  duration: med.instructions,
+                                  price,
+                                  quantity: 1
+                                }
+                              ]);
+                            }}
+                            className={`text-[10px] font-bold py-1.5 px-3 rounded-lg transition-all ${isInCart ? "bg-slate-100 text-slate-400 cursor-not-allowed" : "bg-[#0F62FE] hover:bg-[#0353E9] text-white"}`}
+                          >
+                            {isInCart ? "Added" : "+ Add to Cart"}
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* Shopping Cart List */}
               <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm flex flex-col gap-6">
                 <div className="flex justify-between items-center pb-4 border-b border-slate-100">
-                  <h3 className="text-sm font-bold text-slate-900">Your Prescription Cart</h3>
+                  <h3 className="text-sm font-bold text-slate-900">2. Your Shopping Cart</h3>
                   <span className="bg-blue-50 text-[#0F62FE] text-[10px] font-bold px-2 py-0.5 rounded-full border border-blue-100">
-                    {prescriptionCart.length} Items Pending
+                    {prescriptionCart.length} Items Selected
                   </span>
                 </div>
 
@@ -184,7 +333,7 @@ export default function PrescriptionCart() {
                   </div>
                 ) : (
                   <div className="py-8 text-center text-xs text-slate-400">
-                    Prescription cart is empty.
+                    Your cart is empty. Add prescribed medicines to proceed.
                   </div>
                 )}
 
@@ -207,52 +356,18 @@ export default function PrescriptionCart() {
                 )}
               </div>
 
-              {/* Active Orders Section */}
-              <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm flex flex-col gap-4">
-                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Active Orders</span>
-                
-                <div className="border border-slate-100 p-4 rounded-2xl bg-slate-50/50 flex flex-col md:flex-row justify-between gap-4 items-start md:items-center">
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-bold text-slate-900">ORDER #HLX-89021</span>
-                      <span className="bg-emerald-50 text-emerald-700 text-[8px] font-bold px-2 py-0.5 rounded-full border border-emerald-100 uppercase">
-                        In Transit
-                      </span>
-                    </div>
-                    <p className="text-[10px] text-slate-400 mt-1 font-semibold">Vitamins & Supplements</p>
-                  </div>
-                  
-                  {/* Progress Line */}
-                  <div className="flex items-center gap-2 text-[9px] font-bold text-slate-400">
-                    <span className="text-blue-500">Ordered</span>
-                    <span className="w-1.5 h-1.5 rounded-full bg-blue-500" />
-                    <span className="text-blue-500">Prepared</span>
-                    <span className="w-1.5 h-1.5 rounded-full bg-blue-500" />
-                    <span className="text-blue-500">Shipping</span>
-                    <span className="w-1.5 h-1.5 rounded-full bg-slate-300 animate-pulse" />
-                    <span>Delivered</span>
-                  </div>
-
-                  <div className="text-right">
-                    <p className="text-[10px] text-slate-400 font-bold">Estimated Arrival</p>
-                    <p className="text-xs font-extrabold text-slate-800 mt-0.5">Today, 6:00 PM</p>
-                  </div>
-                </div>
-              </div>
-
             </div>
 
-            {/* Right side: Checkout panel */}
+            {/* Right side: Proceed details panel */}
             <div className="lg:col-span-4 flex flex-col gap-6">
               
               <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm flex flex-col gap-6">
-                <h3 className="text-sm font-bold text-slate-900">Checkout Details</h3>
+                <h3 className="text-sm font-bold text-slate-900">Checkout Delivery</h3>
                 
                 {/* Delivery address checkboxes */}
                 <div className="flex flex-col gap-3">
                   <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Delivery Address</span>
                   
-                  {/* Home */}
                   <label className={`p-4 border rounded-xl flex items-start gap-3 cursor-pointer transition-all ${address === "home" ? 'border-[#0F62FE] bg-blue-50/20' : 'border-slate-200 hover:bg-slate-50'}`}>
                     <input 
                       type="radio" 
@@ -262,13 +377,12 @@ export default function PrescriptionCart() {
                       className="text-[#0F62FE] focus:ring-0 mt-0.5" 
                     />
                     <div className="text-[10px] font-semibold">
-                      <p className="text-slate-900 font-bold">🏠 Home</p>
+                      <p className="text-slate-900 font-bold">🏠 Home Address</p>
                       <p className="text-slate-400 mt-0.5">1248 Medical Parkway, Suite 200,</p>
                       <p className="text-slate-400">San Francisco, CA 94103</p>
                     </div>
                   </label>
 
-                  {/* Office */}
                   <label className={`p-4 border rounded-xl flex items-start gap-3 cursor-pointer transition-all ${address === "office" ? 'border-[#0F62FE] bg-blue-50/20' : 'border-slate-200 hover:bg-slate-50'}`}>
                     <input 
                       type="radio" 
@@ -278,41 +392,21 @@ export default function PrescriptionCart() {
                       className="text-[#0F62FE] focus:ring-0 mt-0.5" 
                     />
                     <div className="text-[10px] font-semibold">
-                      <p className="text-slate-900 font-bold">🏢 Office</p>
+                      <p className="text-slate-900 font-bold">🏢 Office Address</p>
                       <p className="text-slate-400 mt-0.5">450 Tech Plaza, Floor 12,</p>
                       <p className="text-slate-400">San Francisco, CA 94105</p>
                     </div>
                   </label>
-
-                  <button className="border border-dashed border-slate-300 text-slate-500 hover:bg-slate-50 font-bold text-[10px] py-2.5 rounded-xl transition-all">
-                    + Add New Address
-                  </button>
                 </div>
 
-                {/* Credit card select */}
-                <div className="flex flex-col gap-2.5 border-t border-slate-100 pt-6">
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Payment Method</span>
-                  <div className="flex justify-between items-center p-3 border border-slate-200 rounded-xl text-xs font-bold text-slate-700">
-                    <span className="flex items-center gap-2">
-                      💳 •••• 4242
-                    </span>
-                    <button className="text-xs text-[#0F62FE] hover:underline">Change</button>
-                  </div>
-                </div>
-
-                {/* Complete Trigger */}
                 <button
-                  onClick={handleCheckout}
+                  onClick={handleProceedToPayment}
                   disabled={prescriptionCart.length === 0}
                   className="w-full bg-[#0F62FE] hover:bg-[#0353E9] text-white font-bold text-xs py-3.5 rounded-xl transition-all shadow-sm flex items-center justify-center gap-2 disabled:bg-blue-400 disabled:cursor-not-allowed"
                 >
-                  Complete Order
+                  Proceed to Payment
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M14 5l7 7m0 0l-7 7m7-7H3" /></svg>
                 </button>
-                
-                <span className="text-[9px] text-slate-400 text-center leading-relaxed">
-                  By placing the order, you agree to Healix Pharmacy's Terms of Service and health data privacy policy.
-                </span>
               </div>
 
             </div>
@@ -320,34 +414,177 @@ export default function PrescriptionCart() {
           </div>
         )}
 
-        {/* QR Scanner simulation */}
-        {checkoutState === "scanning" && (
-          <div className="p-12 flex flex-col items-center justify-center max-w-md w-full mx-auto my-12 bg-white border border-slate-200 rounded-3xl shadow-sm gap-6 text-center py-20">
-            <h3 className="text-lg font-extrabold text-slate-900">Awaiting QR Payment</h3>
-            <p className="text-xs text-slate-400 -mt-3">Scan the secure checkout QR scanner to complete order.</p>
+        {/* Payment Screen (checkout state) */}
+        {checkoutState === "checkout" && (
+          <div className="p-6 max-w-5xl mx-auto w-full grid grid-cols-1 lg:grid-cols-12 gap-8 animate-fade-in">
+            
+            {/* Left Column: Order Breakdown & Patient Details */}
+            <div className="lg:col-span-6 flex flex-col gap-6">
+              <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm flex flex-col gap-4">
+                <h3 className="text-sm font-bold text-slate-900">Order Summary</h3>
+                
+                <div className="text-xs text-slate-500 font-semibold border-b border-slate-100 pb-4">
+                  <p className="text-slate-800 font-bold mb-2">Patient Details</p>
+                  <div>Name: {user?.name || "Patient"}</div>
+                  <div>Email: {user?.email || "patient@healix.com"}</div>
+                  <div>Delivery Address: {address === "home" ? "1248 Medical Parkway, San Francisco" : "450 Tech Plaza, San Francisco"}</div>
+                </div>
 
-            <div className="w-48 h-48 bg-slate-50 border border-slate-200 rounded-2xl flex items-center justify-center relative overflow-hidden shadow-inner">
-              <div className="w-36 h-36 bg-slate-900 flex flex-wrap p-2 rounded relative">
-                <div className="absolute top-2 left-2 w-8 h-8 border-4 border-white bg-slate-900" />
-                <div className="absolute top-2 right-2 w-8 h-8 border-4 border-white bg-slate-900" />
-                <div className="absolute bottom-2 left-2 w-8 h-8 border-4 border-white bg-slate-900" />
-                <div className="w-full h-full border border-dashed border-white/20 flex items-center justify-center text-white/50 text-[10px] font-bold font-mono">
-                  HEALIX-RX
+                <div className="flex flex-col gap-3">
+                  <p className="text-xs font-bold text-slate-800">Medicines Ordered</p>
+                  {prescriptionCart.map((item) => (
+                    <div key={item.id} className="flex justify-between items-center text-xs">
+                      <div>
+                        <span className="font-bold text-slate-800">{item.name}</span>
+                        <span className="text-slate-400 ml-2">x{item.quantity}</span>
+                      </div>
+                      <span className="font-extrabold text-slate-900">${(item.price * item.quantity).toFixed(2)}</span>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="border-t border-slate-100 pt-4 flex flex-col gap-2 text-xs text-slate-500 font-semibold">
+                  <div className="flex justify-between">
+                    <span>Subtotal</span>
+                    <span className="text-slate-800 font-bold">${subtotal.toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between text-sm font-extrabold text-[#0F62FE] border-t border-slate-100 pt-3 mt-2">
+                    <span>Grand Total</span>
+                    <span>${total.toFixed(2)}</span>
+                  </div>
                 </div>
               </div>
-              <div className="absolute left-0 right-0 h-1 bg-red-500 shadow-[0_0_10px_#ef4444] animate-bounce" style={{ top: '25%' }} />
             </div>
 
-            <div className="flex flex-col gap-1.5 text-center">
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest animate-pulse">Awaiting scanner link</span>
-              <p className="text-xs text-slate-500 font-semibold">Order #HLX-89022 is currently pending checkout.</p>
+            {/* Right Column: Payment Methods & Inputs */}
+            <div className="lg:col-span-6 flex flex-col gap-6">
+              <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm flex flex-col gap-5">
+                <h3 className="text-sm font-bold text-slate-900">Select Payment Method</h3>
+
+                {/* Methods Selectors */}
+                <div className="grid grid-cols-3 gap-2">
+                  <button 
+                    onClick={() => setPaymentMethod("card")}
+                    className={`py-2 px-3 border rounded-xl text-center text-xs font-bold transition-all ${paymentMethod === "card" ? "border-[#0F62FE] bg-blue-50/30 text-[#0F62FE]" : "border-slate-200 text-slate-600 hover:bg-slate-50"}`}
+                  >
+                    💳 Card
+                  </button>
+                  <button 
+                    onClick={() => setPaymentMethod("upi")}
+                    className={`py-2 px-3 border rounded-xl text-center text-xs font-bold transition-all ${paymentMethod === "upi" ? "border-[#0F62FE] bg-blue-50/30 text-[#0F62FE]" : "border-slate-200 text-slate-600 hover:bg-slate-50"}`}
+                  >
+                    📱 UPI
+                  </button>
+                  <button 
+                    onClick={() => setPaymentMethod("net_banking")}
+                    className={`py-2 px-3 border rounded-xl text-center text-xs font-bold transition-all ${paymentMethod === "net_banking" ? "border-[#0F62FE] bg-blue-50/30 text-[#0F62FE]" : "border-slate-200 text-slate-600 hover:bg-slate-50"}`}
+                  >
+                    🏦 NetBanking
+                  </button>
+                </div>
+
+                {/* Conditional Inputs */}
+                {paymentMethod === "card" && (
+                  <div className="flex flex-col gap-3.5 border-t border-slate-100 pt-4">
+                    <div className="flex flex-col gap-1.5">
+                      <label className="text-[10px] font-bold text-slate-500 uppercase">Card Number</label>
+                      <input 
+                        type="text" 
+                        placeholder="4242 4242 4242 4242"
+                        value={cardNumber}
+                        onChange={(e) => setCardNumber(e.target.value)}
+                        className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs focus:outline-none focus:border-[#0F62FE]"
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="flex flex-col gap-1.5">
+                        <label className="text-[10px] font-bold text-slate-500 uppercase">Expiry Date</label>
+                        <input 
+                          type="text" 
+                          placeholder="MM/YY"
+                          value={cardExpiry}
+                          onChange={(e) => setCardExpiry(e.target.value)}
+                          className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs focus:outline-none focus:border-[#0F62FE]"
+                        />
+                      </div>
+                      <div className="flex flex-col gap-1.5">
+                        <label className="text-[10px] font-bold text-slate-500 uppercase">CVV</label>
+                        <input 
+                          type="password" 
+                          placeholder="•••"
+                          maxLength={3}
+                          value={cardCvv}
+                          onChange={(e) => setCardCvv(e.target.value)}
+                          className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs focus:outline-none focus:border-[#0F62FE]"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {paymentMethod === "upi" && (
+                  <div className="flex flex-col gap-3.5 border-t border-slate-100 pt-4">
+                    <div className="flex flex-col gap-1.5">
+                      <label className="text-[10px] font-bold text-slate-500 uppercase">UPI ID / VPA</label>
+                      <input 
+                        type="text" 
+                        placeholder="username@upi"
+                        value={upiId}
+                        onChange={(e) => setUpiId(e.target.value)}
+                        className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs focus:outline-none focus:border-[#0F62FE]"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {paymentMethod === "net_banking" && (
+                  <div className="flex flex-col gap-3.5 border-t border-slate-100 pt-4">
+                    <div className="flex flex-col gap-1.5">
+                      <label className="text-[10px] font-bold text-slate-500 uppercase">Select Bank</label>
+                      <select 
+                        value={selectedBank}
+                        onChange={(e) => setSelectedBank(e.target.value)}
+                        className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs focus:outline-none focus:border-[#0F62FE] bg-white"
+                      >
+                        <option>Chase Bank</option>
+                        <option>Bank of America</option>
+                        <option>Wells Fargo</option>
+                        <option>CitiBank</option>
+                      </select>
+                    </div>
+                  </div>
+                )}
+
+                <button 
+                  onClick={handleCheckout}
+                  className="w-full bg-[#0F62FE] hover:bg-[#0353E9] text-white text-xs font-bold py-3.5 rounded-xl mt-4 shadow-sm"
+                >
+                  Pay & Complete Order (${total.toFixed(2)})
+                </button>
+                <button 
+                  onClick={() => setCheckoutState("cart")}
+                  className="w-full border border-slate-200 text-slate-500 hover:bg-slate-50 text-xs font-bold py-3 rounded-xl"
+                >
+                  Go Back to Cart
+                </button>
+              </div>
             </div>
+
           </div>
         )}
 
-        {/* Success simulation prompt */}
+        {/* Processing Spinner */}
+        {checkoutState === "scanning" && (
+          <div className="p-12 flex flex-col items-center justify-center max-w-md w-full mx-auto my-12 bg-white border border-slate-200 rounded-3xl shadow-sm gap-6 text-center py-20 animate-pulse">
+            <div className="w-12 h-12 border-4 border-t-[#0F62FE] border-slate-100 rounded-full animate-spin" />
+            <h3 className="text-lg font-extrabold text-slate-900">Processing Secure Payment</h3>
+            <p className="text-xs text-slate-400 -mt-3">Connecting to bank gateways. Please do not close this window.</p>
+          </div>
+        )}
+
+        {/* Success screen */}
         {checkoutState === "success" && (
-          <div className="p-10 flex flex-col items-center justify-center max-w-md w-full mx-auto my-12 bg-white border border-slate-200 rounded-3xl shadow-sm gap-6 text-center py-16">
+          <div className="p-10 flex flex-col items-center justify-center max-w-md w-full mx-auto my-12 bg-white border border-slate-200 rounded-3xl shadow-sm gap-6 text-center py-16 animate-fade-in">
             <div className="w-16 h-16 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center shadow-sm">
               <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" /></svg>
             </div>
@@ -357,13 +594,13 @@ export default function PrescriptionCart() {
                 Payment Success
               </span>
               <h3 className="text-xl font-extrabold text-slate-900 mt-3">Order Confirmed!</h3>
-              <p className="text-xs text-slate-400 mt-1">Your prescription checkout has been processed.</p>
+              <p className="text-xs text-slate-400 mt-1">Your prescription payment has been processed.</p>
             </div>
 
             <div className="bg-slate-50 border border-slate-100 rounded-xl p-4 w-full text-left flex flex-col gap-2.5 text-xs font-semibold text-slate-600">
               <div className="flex justify-between">
                 <span>Shipping method</span>
-                <span className="text-slate-900 font-bold">Standard Delivery (Home)</span>
+                <span className="text-slate-900 font-bold">Standard Delivery ({address === "home" ? "Home" : "Office"})</span>
               </div>
               <div className="flex justify-between">
                 <span>Est Delivery</span>
@@ -371,7 +608,7 @@ export default function PrescriptionCart() {
               </div>
               <div className="flex justify-between border-t border-slate-200/50 pt-2.5 mt-1">
                 <span>Order Reference</span>
-                <span className="text-[#0F62FE] font-mono font-bold uppercase">HLX-89022</span>
+                <span className="text-[#0F62FE] font-mono font-bold uppercase">{generatedOrderId}</span>
               </div>
             </div>
 
@@ -379,7 +616,7 @@ export default function PrescriptionCart() {
               onClick={handleProceedToRx}
               className="w-full bg-[#0F62FE] hover:bg-[#0353E9] text-white font-bold text-xs py-3.5 rounded-xl transition-all shadow-sm text-center"
             >
-              View Digital Prescription details
+              Continue to Prescription Page
             </button>
           </div>
         )}

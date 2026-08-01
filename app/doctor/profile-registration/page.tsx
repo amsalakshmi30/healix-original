@@ -4,9 +4,10 @@ import React, { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useApp } from "@/app/context/AppContext";
+import { supabase } from "@/lib/lib/supabase";
 
 export default function DoctorProfileRegistration() {
-  const { setDoctorProfile, logout } = useApp();
+  const { setDoctorProfile, logout, user } = useApp();
   const router = useRouter();
 
   // Profile fields state
@@ -17,6 +18,8 @@ export default function DoctorProfileRegistration() {
   const [fee, setFee] = useState("150.00");
   const [bio, setBio] = useState("Briefly describe your medical philosophy and background...");
   const [languages, setLanguages] = useState(["English", "Spanish"]);
+  const [avatarUrl, setAvatarUrl] = useState("");
+  const [uploading, setUploading] = useState(false);
 
   // Slots state selection
   const [slots, setSlots] = useState({
@@ -27,7 +30,35 @@ export default function DoctorProfileRegistration() {
     FRI: ["09:00 AM"]
   });
 
-  const handlePublish = (e: React.FormEvent) => {
+  const handleAvatarUpload = async (file: File) => {
+    if (!file) return;
+    setUploading(true);
+    try {
+      const userId = user?.id || "anonymous";
+      const fileExt = file.name.split(".").pop();
+      const fileName = `avatar_${Date.now()}.${fileExt}`;
+      const filePath = `${userId}/${fileName}`;
+
+      const { data, error } = await supabase.storage
+        .from("avatars")
+        .upload(filePath, file, { upsert: true });
+
+      if (error) throw error;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from("avatars")
+        .getPublicUrl(filePath);
+
+      setAvatarUrl(publicUrl);
+    } catch (err: any) {
+      console.error("Error uploading avatar:", err);
+      alert("Error uploading avatar: " + err.message);
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handlePublish = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name || !specialization || !hospital) {
       alert("Please fill in all core professional details.");
@@ -35,7 +66,7 @@ export default function DoctorProfileRegistration() {
     }
 
     // Save profile to context state
-    setDoctorProfile({
+    await setDoctorProfile({
       name,
       specialization,
       hospital,
@@ -51,6 +82,21 @@ export default function DoctorProfileRegistration() {
         "FRI 25": slots.FRI
       }
     });
+
+    if (user?.id) {
+      try {
+        const updatePayload: any = {};
+        if (avatarUrl) updatePayload.avatar_url = avatarUrl;
+        if (name) updatePayload.full_name = name;
+        
+        await supabase
+          .from("profiles")
+          .update(updatePayload)
+          .eq("id", user.id);
+      } catch (err) {
+        console.error("Error updating profile avatar/name in Supabase:", err);
+      }
+    }
 
     router.push("/doctor/dashboard");
   };
@@ -104,13 +150,30 @@ export default function DoctorProfileRegistration() {
           <div className="grid grid-cols-1 md:grid-cols-12 gap-8 items-start pb-8 border-b border-slate-100">
             {/* Avatar Photo Slot */}
             <div className="md:col-span-3 flex flex-col items-center gap-3">
-              <div className="w-24 h-24 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center font-bold text-slate-600 text-2xl relative shadow-inner">
-                👩‍⚕️
-                <button type="button" className="absolute bottom-0 right-0 w-8 h-8 rounded-full bg-[#0F62FE] text-white border-2 border-white flex items-center justify-center text-xs shadow-sm">
+              <input 
+                type="file" 
+                id="avatar-file" 
+                className="hidden" 
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) handleAvatarUpload(file);
+                }} 
+              />
+              <div className="w-24 h-24 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center font-bold text-slate-600 text-2xl relative shadow-inner overflow-hidden">
+                {avatarUrl ? (
+                  <img src={avatarUrl} alt="Avatar" className="w-full h-full object-cover" />
+                ) : (
+                  "👩‍⚕️"
+                )}
+                <button 
+                  type="button" 
+                  onClick={() => document.getElementById("avatar-file")?.click()}
+                  className="absolute bottom-0 right-0 w-8 h-8 rounded-full bg-[#0F62FE] text-white border-2 border-white flex items-center justify-center text-xs shadow-sm cursor-pointer"
+                >
                   ✏️
                 </button>
               </div>
-              <span className="text-[10px] text-slate-400 font-bold">Profile Photo (JPG/PNG, max 2MB)</span>
+              <span className="text-[10px] text-slate-400 font-bold">{uploading ? "Uploading..." : "Profile Photo (JPG/PNG, max 2MB)"}</span>
             </div>
 
             {/* Inputs grid */}

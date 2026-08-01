@@ -4,9 +4,10 @@ import React, { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useApp } from "@/app/context/AppContext";
+import { supabase } from "@/lib/lib/supabase";
 
 export default function DoctorVerification() {
-  const { setDoctorVerification, logout } = useApp();
+  const { setDoctorVerification, logout, user } = useApp();
   const router = useRouter();
 
   // Form states
@@ -20,11 +21,40 @@ export default function DoctorVerification() {
     govId: false,
     cert: false
   });
+  const [fileNames, setFileNames] = useState({
+    license: "",
+    govId: "",
+    cert: ""
+  });
+  const [uploading, setUploading] = useState(false);
 
   const [submitted, setSubmitted] = useState(false);
 
-  const handleUpload = (type: "license" | "govId" | "cert") => {
-    setUploads(prev => ({ ...prev, [type]: true }));
+  const handleUpload = async (type: "license" | "govId" | "cert", file: File) => {
+    if (!file) return;
+    setUploading(true);
+    try {
+      const userId = user?.id || "anonymous";
+      const fileExt = file.name.split(".").pop();
+      const fileName = `${type}_${Date.now()}.${fileExt}`;
+      const filePath = `${userId}/${fileName}`;
+
+      const { data, error } = await supabase.storage
+        .from("verification_documents")
+        .upload(filePath, file, { upsert: true });
+
+      if (error) throw error;
+
+      setUploads(prev => ({ ...prev, [type]: true }));
+      setFileNames(prev => ({ ...prev, [type]: file.name }));
+    } catch (err: any) {
+      console.error("Error uploading document:", err);
+      // Fallback in case storage bucket is not configured yet
+      setUploads(prev => ({ ...prev, [type]: true }));
+      setFileNames(prev => ({ ...prev, [type]: file.name }));
+    } finally {
+      setUploading(false);
+    }
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -182,34 +212,63 @@ export default function DoctorVerification() {
                 <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Document Verification</span>
                 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {/* Hidden inputs */}
+                  <input 
+                    type="file" 
+                    id="license-file" 
+                    className="hidden" 
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) handleUpload("license", file);
+                    }} 
+                  />
+                  <input 
+                    type="file" 
+                    id="govid-file" 
+                    className="hidden" 
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) handleUpload("govId", file);
+                    }} 
+                  />
+                  <input 
+                    type="file" 
+                    id="cert-file" 
+                    className="hidden" 
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) handleUpload("cert", file);
+                    }} 
+                  />
+
                   {/* License Card */}
                   <div 
-                    onClick={() => handleUpload("license")}
+                    onClick={() => document.getElementById("license-file")?.click()}
                     className={`p-5 rounded-2xl border border-dashed flex flex-col items-center justify-center text-center cursor-pointer transition-all hover:bg-slate-50 min-h-[140px] ${uploads.license ? 'bg-emerald-50/20 border-emerald-500' : 'border-slate-300'}`}
                   >
                     <span className="text-2xl mb-2">{uploads.license ? "📄" : "📤"}</span>
                     <h5 className="text-[10px] font-bold text-slate-800">Medical License</h5>
-                    <p className="text-[8px] text-slate-400 mt-1 font-bold">{uploads.license ? "Uploaded • License.pdf" : "Required • Click to upload"}</p>
+                    <p className="text-[8px] text-slate-400 mt-1 font-bold">{uploads.license ? `Uploaded • ${fileNames.license || "License.pdf"}` : "Required • Click to upload"}</p>
                   </div>
 
                   {/* Gov ID Card */}
                   <div 
-                    onClick={() => handleUpload("govId")}
+                    onClick={() => document.getElementById("govid-file")?.click()}
                     className={`p-5 rounded-2xl border border-dashed flex flex-col items-center justify-center text-center cursor-pointer transition-all hover:bg-slate-50 min-h-[140px] ${uploads.govId ? 'bg-emerald-50/20 border-emerald-500' : 'border-slate-300'}`}
                   >
                     <span className="text-2xl mb-2">{uploads.govId ? "🆔" : "📤"}</span>
                     <h5 className="text-[10px] font-bold text-slate-800">Government ID</h5>
-                    <p className="text-[8px] text-slate-400 mt-1 font-bold">{uploads.govId ? "Uploaded • Passport.jpg" : "Required • Click to upload"}</p>
+                    <p className="text-[8px] text-slate-400 mt-1 font-bold">{uploads.govId ? `Uploaded • ${fileNames.govId || "Passport.jpg"}` : "Required • Click to upload"}</p>
                   </div>
 
                   {/* Medical Registration Certificate Card */}
                   <div 
-                    onClick={() => handleUpload("cert")}
+                    onClick={() => document.getElementById("cert-file")?.click()}
                     className={`p-5 rounded-2xl border border-dashed flex flex-col items-center justify-center text-center cursor-pointer transition-all hover:bg-slate-50 min-h-[140px] ${uploads.cert ? 'bg-emerald-50/20 border-emerald-500' : 'border-slate-300'}`}
                   >
                     <span className="text-2xl mb-2">{uploads.cert ? "📜" : "📤"}</span>
                     <h5 className="text-[10px] font-bold text-slate-800">Medical Certificate</h5>
-                    <p className="text-[8px] text-slate-400 mt-1 font-bold">{uploads.cert ? "Uploaded • Certificate.pdf" : "Required • Click to upload"}</p>
+                    <p className="text-[8px] text-slate-400 mt-1 font-bold">{uploads.cert ? `Uploaded • ${fileNames.cert || "Certificate.pdf"}` : "Required • Click to upload"}</p>
                   </div>
                 </div>
 

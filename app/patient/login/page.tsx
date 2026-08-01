@@ -4,6 +4,7 @@ import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useApp } from "@/app/context/AppContext";
+import { supabase } from "@/lib/supabase";
 
 export default function PatientLogin() {
   const { login, isLoggedIn, user } = useApp();
@@ -13,8 +14,9 @@ export default function PatientLogin() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [isRegister, setIsRegister] = useState(false);
 
-  // Redirect if already logged in
+  // Redirect if already logged in (no await inside useEffect)
   useEffect(() => {
     if (isLoggedIn && user) {
       if (user.type === "patient") {
@@ -25,7 +27,7 @@ export default function PatientLogin() {
     }
   }, [isLoggedIn, user, router]);
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email) {
       setError("Please enter your email address.");
@@ -39,12 +41,63 @@ export default function PatientLogin() {
     setLoading(true);
     setError("");
 
-    // Simulate login delay
-    setTimeout(() => {
-      login("patient", email, "Sarah Jenkins");
+    try {
+      if (isRegister) {
+        // Sign up logic
+        const { error: signUpError } = await supabase.auth.signUp({
+          email,
+          password,
+          options: {
+            data: {
+              name: email.split("@")[0] || "Patient",
+              type: "patient",
+              role: "patient",
+              phone_number: "+1 (555) 019-2834",
+              age: 34,
+              gender: "Female",
+              avatar_url: "/sarah-jenkins.jpg",
+            },
+          },
+        });
+        if (signUpError) throw signUpError;
+        alert("Registration successful! You can now log in.");
+        setIsRegister(false);
+      } else {
+        // Sign in logic
+        const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+          email,
+          password,
+        });
+        if (signInError) throw signInError;
+        
+        // Ensure patient profile is fully populated with all required details
+        if (signInData.user) {
+          try {
+            await supabase
+              .from("profiles")
+              .upsert({
+                id: signInData.user.id,
+                email: signInData.user.email,
+                phone_number: "+1 (555) 019-2834",
+                age: 34,
+                gender: "Female",
+                role: "patient",
+                full_name: signInData.user.user_metadata?.name || email.split("@")[0] || "Patient"
+              });
+          } catch (updateErr) {
+            console.error("Error populating profile fields:", updateErr);
+          }
+        }
+
+        // Call login from AppContext
+        login("patient", email, signInData.user?.user_metadata?.name || email.split("@")[0]);
+        router.push("/patient/dashboard");
+      }
+    } catch (err: any) {
+      setError(err.message || "An error occurred during authentication.");
+    } finally {
       setLoading(false);
-      router.push("/patient/dashboard");
-    }, 800);
+    }
   };
 
   return (
@@ -113,18 +166,26 @@ export default function PatientLogin() {
             
             {/* Tabs Selector */}
             <div className="flex gap-1.5 p-1 bg-slate-100 rounded-lg w-fit">
-              <button className="bg-white text-slate-900 text-sm font-semibold px-6 py-2 rounded-md shadow-sm">
+              <button 
+                type="button"
+                onClick={() => setIsRegister(false)}
+                className={`${!isRegister ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"} text-sm font-semibold px-6 py-2 rounded-md transition-all`}
+              >
                 Login
               </button>
-              <button className="text-slate-500 hover:text-slate-700 text-sm font-semibold px-6 py-2">
+              <button 
+                type="button"
+                onClick={() => setIsRegister(true)}
+                className={`${isRegister ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"} text-sm font-semibold px-6 py-2 rounded-md transition-all`}
+              >
                 Register
               </button>
             </div>
 
             {/* Intro */}
             <div>
-              <h3 className="text-2xl font-bold text-slate-950">Welcome Back</h3>
-              <p className="text-slate-400 text-sm mt-1">Please enter your details to access your account.</p>
+              <h3 className="text-2xl font-bold text-slate-950">{isRegister ? "Create Account" : "Welcome Back"}</h3>
+              <p className="text-slate-400 text-sm mt-1">{isRegister ? "Register a new patient account to get started." : "Please enter your details to access your account."}</p>
             </div>
 
             {error && (
@@ -156,7 +217,7 @@ export default function PatientLogin() {
               <div className="flex flex-col gap-1.5">
                 <div className="flex justify-between items-center">
                   <label className="text-xs font-bold text-slate-700" htmlFor="password-input">Password</label>
-                  <a href="#" className="text-xs font-bold text-[#0F62FE] hover:underline">Forgot Password?</a>
+                  {!isRegister && <a href="#" className="text-xs font-bold text-[#0F62FE] hover:underline">Forgot Password?</a>}
                 </div>
                 <div className="relative">
                   <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-400">
@@ -175,25 +236,27 @@ export default function PatientLogin() {
               </div>
 
               {/* Remember checkbox */}
-              <div className="flex items-center gap-2.5 py-1">
-                <input
-                  type="checkbox"
-                  id="remember-checkbox"
-                  className="w-4 h-4 rounded text-[#0F62FE] focus:ring-[#0F62FE] border-slate-300"
-                  defaultChecked
-                />
-                <label htmlFor="remember-checkbox" className="text-xs font-semibold text-slate-500">
-                  Remember me for 30 days
-                </label>
-              </div>
+              {!isRegister && (
+                <div className="flex items-center gap-2.5 py-1">
+                  <input
+                    type="checkbox"
+                    id="remember-checkbox"
+                    className="w-4 h-4 rounded text-[#0F62FE] focus:ring-[#0F62FE] border-slate-300"
+                    defaultChecked
+                  />
+                  <label htmlFor="remember-checkbox" className="text-xs font-semibold text-slate-500">
+                    Remember me for 30 days
+                  </label>
+                </div>
+              )}
 
               <button
                 type="submit"
                 disabled={loading}
                 className="w-full bg-[#0F62FE] hover:bg-[#0353E9] text-white font-semibold text-sm py-3 px-6 rounded-xl flex items-center justify-center gap-2 transition-all mt-2 shadow-sm disabled:bg-blue-400"
               >
-                {loading ? "Authenticating..." : "Get Started"}
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14 5l7 7m0 0l-7 7m7-7H3" /></svg>
+                {loading ? "Authenticating..." : isRegister ? "Register" : "Get Started"}
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M14 5l7 7m0 0l-7 7m7-7H3" /></svg>
               </button>
             </form>
 

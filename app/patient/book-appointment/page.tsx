@@ -37,10 +37,10 @@ export default function BookAppointment() {
         addAppointment({
           doctorName: doc.name,
           doctorSpecialization: doc.specialization,
-          doctorAvatar: "/doc-alex.jpg",
+          doctorAvatar: doc.avatar || "/doc-alex.jpg",
           date: slot.date,
           time: slot.time + " (45 min)",
-          fee: "$150.00",
+          fee: doc.fee || "$150.00",
           room: "Virtual Clinic - Room #402"
         });
         setPayState("success");

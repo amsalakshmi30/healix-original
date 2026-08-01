@@ -4,6 +4,7 @@ import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useApp } from "@/app/context/AppContext";
+import { supabase } from "@/lib/supabase";
 
 export default function PatientDashboard() {
   const { user, logout, appointments } = useApp();
@@ -21,6 +22,37 @@ export default function PatientDashboard() {
     afternoon: true,
     night: false
   });
+
+  // QR Scanner States
+  const [qrOpen, setQrOpen] = useState(false);
+  const [scanning, setScanning] = useState(false);
+  const [cameraError, setCameraError] = useState("");
+  const [scannedDetails, setScannedDetails] = useState<any>(null);
+  const [qrStream, setQrStream] = useState<MediaStream | null>(null);
+
+  // SOS States
+  const [sosOpen, setSosOpen] = useState(false);
+  const [emergencyPhone, setEmergencyPhone] = useState("+919876543210");
+  const [isEditingPhone, setIsEditingPhone] = useState(false);
+  const [tempPhone, setTempPhone] = useState("+919876543210");
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const stored = localStorage.getItem("healix_emergency_phone");
+      if (stored) {
+        setEmergencyPhone(stored);
+        setTempPhone(stored);
+      }
+    }
+  }, []);
+
+  const savePhone = () => {
+    if (tempPhone.trim()) {
+      setEmergencyPhone(tempPhone);
+      localStorage.setItem("healix_emergency_phone", tempPhone);
+      setIsEditingPhone(false);
+    }
+  };
 
   useEffect(() => {
     // Check if user is logged in
@@ -43,8 +75,116 @@ export default function PatientDashboard() {
     return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
   };
 
-  const handleAddWater = (amount: number) => {
-    setWater((prev) => Math.min(2.5, Math.round((prev + amount) * 10) / 10));
+  // QR Scanner actions
+  const startCamera = async () => {
+    setQrOpen(true);
+    setCameraError("");
+    setScanning(true);
+    setScannedDetails(null);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+      setQrStream(stream);
+      setTimeout(() => {
+        const videoEl = document.getElementById("dashboard-qr-video") as HTMLVideoElement;
+        if (videoEl) {
+          videoEl.srcObject = stream;
+        }
+      }, 100);
+      
+      // Simulate scan process after 3 seconds
+      setTimeout(() => {
+        setScannedDetails({
+          doctor: "Dr. Sarah Jenkins",
+          room: "Virtual Clinic - Room #402",
+          time: "2:30 PM - 3:00 PM"
+        });
+        setScanning(false);
+      }, 3000);
+    } catch (err: any) {
+      console.error("Camera access denied or error:", err);
+      setCameraError("Camera access was denied. Please check site permissions.");
+      setScanning(false);
+    }
+  };
+
+  const stopCamera = () => {
+    if (qrStream) {
+      qrStream.getTracks().forEach((track) => track.stop());
+      setQrStream(null);
+    }
+    setScanning(false);
+    setScannedDetails(null);
+    setQrOpen(false);
+  };
+
+  // Download Prescription PDF method
+  const downloadPrescription = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("prescriptions")
+        .select("*")
+        .eq("patient_id", user?.id)
+        .order("created_at", { ascending: false })
+        .limit(1);
+
+      if (error) throw error;
+      if (!data || data.length === 0) {
+        alert("No active prescriptions found in your account.");
+        return;
+      }
+
+      const rx = data[0];
+      const printWindow = window.open("", "_blank");
+      if (printWindow) {
+        printWindow.document.write(`
+          <html>
+            <head>
+              <title>Prescription - ${rx.medicine_name}</title>
+              <style>
+                body { font-family: sans-serif; padding: 40px; color: #1e293b; }
+                .header { border-bottom: 2px solid #0f62fe; padding-bottom: 20px; margin-bottom: 30px; }
+                .title { font-size: 24px; font-weight: bold; color: #0f62fe; }
+                .doctor { font-size: 16px; font-weight: bold; margin-top: 5px; }
+                .details { margin-bottom: 30px; font-size: 14px; color: #64748b; }
+                .med-title { font-size: 18px; font-weight: bold; margin-bottom: 10px; }
+                .med-box { background: #f8fafc; border: 1px solid #e2e8f0; padding: 20px; border-radius: 12px; margin-bottom: 30px; }
+                .notes { font-size: 12px; color: #64748b; border-top: 1px solid #e2e8f0; padding-top: 20px; }
+                @media print {
+                  .print-btn { display: none; }
+                }
+              </style>
+            </head>
+            <body>
+              <div class="header">
+                <div class="title">HEALIX DIGITAL PRESCRIPTION</div>
+                <div class="doctor">Prescribed by ${rx.doctor_name || "Healix Practitioner"}</div>
+              </div>
+              <div class="details">
+                <strong>Patient ID:</strong> ${rx.patient_id}<br/>
+                <strong>Date:</strong> ${new Date(rx.created_at).toLocaleDateString()}<br/>
+                <strong>Status:</strong> ${rx.status}
+              </div>
+              <div class="med-box">
+                <div class="med-title">${rx.medicine_name}</div>
+                <div><strong>Dosage:</strong> ${rx.dosage}</div>
+                <div style="margin-top: 10px;"><strong>Instructions:</strong> ${rx.instructions}</div>
+              </div>
+              <div class="notes">
+                <strong>Clinical Notes:</strong><br/>
+                ${rx.clinical_notes || "No additional clinical notes."}
+              </div>
+              <button class="print-btn" onclick="window.print()" style="margin-top: 30px; background: #0f62fe; color: white; border: none; padding: 10px 20px; font-weight: bold; border-radius: 8px; cursor: pointer;">Print / Save as PDF</button>
+              <script>
+                window.onload = function() { window.print(); }
+              </script>
+            </body>
+          </html>
+        `);
+        printWindow.document.close();
+      }
+    } catch (err: any) {
+      alert("Failed to retrieve prescription: " + err.message);
+    }
   };
 
   const nextAppt = appointments[0] || {
@@ -58,7 +198,7 @@ export default function PatientDashboard() {
   };
 
   return (
-    <div className="flex min-h-screen bg-slate-50 font-sans">
+    <div className="flex min-h-screen bg-[#F8FAFC] font-sans text-slate-800">
       
       {/* Sidebar Navigation */}
       <aside className="hidden lg:flex flex-col w-64 bg-white border-r border-slate-200 p-6 justify-between shrink-0">
@@ -76,8 +216,12 @@ export default function PatientDashboard() {
 
           {/* User Profile Card */}
           <div className="flex items-center gap-3 p-3 bg-slate-50 border border-slate-100 rounded-xl">
-            <div className="w-10 h-10 rounded-full bg-blue-100 text-[#0F62FE] flex items-center justify-center font-bold text-sm">
-              SJ
+            <div className="w-10 h-10 rounded-full bg-blue-100 text-[#0F62FE] flex items-center justify-center font-bold text-sm overflow-hidden">
+              {user?.avatar ? (
+                <img src={user.avatar} alt="Avatar" className="w-full h-full object-cover" />
+              ) : (
+                "SJ"
+              )}
             </div>
             <div>
               <h4 className="text-xs font-bold text-slate-900">{user?.name || "Sarah Jenkins"}</h4>
@@ -107,37 +251,25 @@ export default function PatientDashboard() {
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" /></svg>
               Health Alerts
             </Link>
-
-            {/* Book Button */}
-            <Link 
-              href="/patient/appointments"
-              className="mt-8 bg-[#0F62FE] hover:bg-[#0353E9] text-white font-semibold text-center py-3 rounded-full shadow-sm hover:shadow transition-all duration-200"
-            >
-              Book New Appointment
-            </Link>
           </nav>
         </div>
 
-        {/* Bottom actions */}
+        {/* Bottom logout */}
         <div className="flex flex-col gap-1 text-slate-500 font-medium text-xs border-t border-slate-100 pt-6">
-          <Link href="#" className="flex items-center gap-3 px-3.5 py-2.5 rounded-lg hover:bg-slate-50 transition-colors">
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
-            Settings
-          </Link>
-          <button onClick={logout} className="flex items-center gap-3 px-3.5 py-2.5 rounded-lg text-red-600 hover:bg-red-50 transition-colors w-full text-left">
+          <button onClick={logout} className="flex items-center gap-3 px-3.5 py-2.5 rounded-lg text-red-600 hover:bg-red-50 transition-colors w-full text-left font-bold">
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
             Sign Out
           </button>
         </div>
       </aside>
 
-      {/* Main Dashboard Content */}
+      {/* Main Panel Content */}
       <main className="flex-1 flex flex-col min-w-0 overflow-y-auto">
         
         {/* Top Header Bar */}
         <header className="bg-white border-b border-slate-200 px-6 py-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div>
-            <h1 className="text-xl font-bold text-slate-900">Good Morning, {user?.name.split(" ")[0] || "Sarah"}</h1>
+            <h1 className="text-xl font-bold text-slate-900">Good Morning, {user?.name ? user.name.split(" ")[0] : "Sarah"}</h1>
             <p className="text-slate-400 text-[11px] font-medium">Your health is looking great today.</p>
           </div>
           
@@ -146,57 +278,42 @@ export default function PatientDashboard() {
               <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-400">
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
               </span>
-              <input 
-                type="text" 
-                placeholder="Search records, doctors..." 
-                className="w-full sm:w-64 pl-9 pr-4 py-2 border border-slate-200 rounded-lg text-xs bg-slate-50 focus:outline-none focus:bg-white"
+              <input
+                type="text"
+                placeholder="Search metrics, reports..."
+                className="w-full sm:w-60 pl-9 pr-4 py-2 border border-slate-200 rounded-xl text-xs focus:outline-none focus:border-[#0F62FE] bg-white font-medium"
               />
             </div>
             
-            <button className="relative w-9 h-9 border border-slate-200 rounded-lg flex items-center justify-center text-slate-500 hover:bg-slate-50">
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" /></svg>
-              <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 bg-red-500 rounded-full" />
-            </button>
-
-            {/* Mobile Sidebar Trigger / Logout */}
-            <button onClick={logout} className="lg:hidden w-9 h-9 border border-slate-200 rounded-lg flex items-center justify-center text-red-500 hover:bg-red-50">
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
-            </button>
+            {/* Quick user avatar for mobile */}
+            <div className="lg:hidden w-8 h-8 rounded-full bg-slate-100 overflow-hidden">
+              <img src={user?.avatar || "/sarah-jenkins.jpg"} alt="avatar" className="w-full h-full object-cover" />
+            </div>
           </div>
         </header>
 
-        {/* Dashboard Grid Grid */}
-        <div className="p-6 flex flex-col gap-6 max-w-7xl mx-auto w-full">
+        {/* Content Console */}
+        <div className="p-6 max-w-7xl mx-auto w-full flex flex-col gap-6">
           
-          {/* Top Metric Cards Row */}
+          {/* Top Info Grid */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             
-            {/* BMI Card */}
-            <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm flex flex-col justify-between">
-              <div className="flex justify-between items-start">
-                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Body Mass Index</span>
-                <span className="text-slate-300 hover:text-slate-500 cursor-pointer">
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" /></svg>
-                </span>
+            {/* Health Score Card */}
+            <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm flex items-center justify-between">
+              <div className="flex flex-col gap-1">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Health Score</span>
+                <p className="text-3xl font-extrabold text-slate-900 mt-1">94<span className="text-xs text-[#0F62FE] font-bold">/100</span></p>
+                <span className="text-[9px] font-bold text-emerald-500 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-100 w-fit mt-1">Excellent</span>
               </div>
-              <div className="my-3">
-                <p className="text-3xl font-extrabold text-slate-900 leading-none">22.4</p>
-                <span className="bg-emerald-50 text-emerald-700 text-[10px] font-bold px-2 py-0.5 rounded-full inline-block mt-2">
-                  Healthy Range
-                </span>
-              </div>
-              <div className="w-full h-8 bg-slate-100 rounded-lg overflow-hidden flex items-end relative mt-2">
-                <div className="absolute inset-0 flex items-center justify-between px-2 text-[8px] text-slate-400 font-bold z-10">
-                  <span>18.5 - 24.9</span>
-                </div>
-                <div className="h-full bg-emerald-500/20" style={{ width: '60%' }} />
+              <div className="w-16 h-16 rounded-full bg-[#0F62FE]/5 border-2 border-[#0F62FE] flex items-center justify-center font-black text-sm text-[#0F62FE]">
+                A+
               </div>
             </div>
 
-            {/* Heart Rate Card */}
+            {/* Heart Vitals Card */}
             <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm flex flex-col justify-between">
               <div className="flex justify-between items-start">
-                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Heart Rate</span>
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Heart Vitals</span>
                 <span className="text-red-500 animate-pulse">
                   <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z" clipRule="evenodd" /></svg>
                 </span>
@@ -297,21 +414,21 @@ export default function PatientDashboard() {
                   <div className="w-8 h-8 rounded-lg bg-blue-100 text-[#0F62FE] flex items-center justify-center">
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
                   </div>
-                  <span className="text-xs font-bold text-slate-800">Lab Results</span>
+                  <span className="text-xs font-bold text-slate-800 text-left">Lab Results</span>
                 </div>
 
-                <div className="flex flex-col gap-3 p-4 bg-slate-50 border border-slate-100 rounded-xl hover:bg-red-50/50 hover:border-red-100 transition-all cursor-pointer">
+                <div onClick={() => setSosOpen(true)} className="flex flex-col gap-3 p-4 bg-slate-50 border border-slate-100 rounded-xl hover:bg-red-50/50 hover:border-red-100 transition-all cursor-pointer">
                   <div className="w-8 h-8 rounded-lg bg-red-100 text-red-600 flex items-center justify-center">
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
                   </div>
-                  <span className="text-xs font-bold text-slate-800">SOS Contact</span>
+                  <span className="text-xs font-bold text-slate-800 text-left">SOS Contact</span>
                 </div>
 
-                <div className="flex flex-col gap-3 p-4 bg-slate-50 border border-slate-100 rounded-xl hover:bg-blue-50/50 hover:border-blue-100 transition-all cursor-pointer">
+                <div onClick={startCamera} className="flex flex-col gap-3 p-4 bg-slate-50 border border-slate-100 rounded-xl hover:bg-blue-50/50 hover:border-blue-100 transition-all cursor-pointer">
                   <div className="w-8 h-8 rounded-lg bg-blue-100 text-[#0F62FE] flex items-center justify-center">
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8.684 10.742l4.8 2.4A2 2 0 1113.6 15.2a2 2 0 01-2.8-2.8l4.8-2.4a2 2 0 11.8 2.8" /></svg>
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h3m-3 0H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                   </div>
-                  <span className="text-xs font-bold text-slate-800">Share Record</span>
+                  <span className="text-xs font-bold text-slate-800 text-left">Scan QR</span>
                 </div>
               </div>
             </div>
@@ -328,7 +445,10 @@ export default function PatientDashboard() {
                   <h3 className="text-sm font-bold text-slate-900">Medication Timeline</h3>
                   <p className="text-[10px] text-slate-400 font-medium">Daily prescription tracker</p>
                 </div>
-                <button className="text-xs font-bold text-[#0F62FE] hover:underline">Full Schedule</button>
+                <div className="flex gap-3">
+                  <button onClick={downloadPrescription} className="text-xs font-bold text-emerald-600 hover:underline">📄 Download Rx</button>
+                  <button className="text-xs font-bold text-[#0F62FE] hover:underline">Full Schedule</button>
+                </div>
               </div>
 
               <div className="flex flex-col gap-4">
@@ -398,101 +518,30 @@ export default function PatientDashboard() {
                 <div className="flex items-center gap-4">
                   {/* Circle progress ring simulator */}
                   <div className="w-14 h-14 rounded-full border-4 border-blue-500/20 border-t-blue-500 flex items-center justify-center font-bold text-xs text-blue-600 relative shrink-0">
-                    {Math.round((water / 2.5) * 100)}%
+                    72%
                   </div>
                   <div>
-                    <h4 className="text-xs font-bold text-slate-800">Water Intake</h4>
-                    <p className="text-xs font-extrabold text-slate-900 mt-0.5">{water}L <span className="text-[10px] text-slate-400 font-semibold">/ 2.5L</span></p>
+                    <h4 className="text-xs font-bold text-slate-800">Water Hydration</h4>
+                    <p className="text-[10px] text-slate-400 mt-0.5 font-medium">{water}L of 2.5L Daily Goal</p>
                   </div>
                 </div>
-                <div className="flex gap-1.5 shrink-0">
-                  <button onClick={() => handleAddWater(0.2)} className="w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs flex items-center justify-center">
-                    +0.2
-                  </button>
-                  <button onClick={() => handleAddWater(0.5)} className="w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs flex items-center justify-center">
-                    +0.5
-                  </button>
+                <button 
+                  onClick={() => setWater((prev) => Number((prev + 0.25).toFixed(2)))} 
+                  className="w-8 h-8 rounded-full bg-blue-50 hover:bg-blue-100 text-[#0F62FE] font-extrabold text-sm flex items-center justify-center transition-colors"
+                >
+                  +
+                </button>
+              </div>
+
+              {/* Sleep tracker card */}
+              <div className="bg-white border border-slate-200 rounded-3xl p-5 shadow-sm flex items-center gap-4">
+                <div className="w-14 h-14 rounded-full bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
+                  <span className="text-xl">🌙</span>
                 </div>
-              </div>
-
-              {/* Sleep Card */}
-              <div className="bg-white border border-slate-200 rounded-3xl p-5 shadow-sm flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <div className="w-14 h-14 rounded-full border-4 border-indigo-500/20 border-t-indigo-500 flex items-center justify-center shrink-0 text-indigo-600">
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" /></svg>
-                  </div>
-                  <div>
-                    <h4 className="text-xs font-bold text-slate-800">Sleep Quality</h4>
-                    <p className="text-xs font-extrabold text-slate-900 mt-0.5">7h 45m</p>
-                    <span className="text-[9px] text-emerald-500 font-bold">Excellent</span>
-                  </div>
+                <div>
+                  <h4 className="text-xs font-bold text-slate-800">Sleep Analysis</h4>
+                  <p className="text-[10px] text-slate-400 mt-0.5 font-medium">7h 45m Restful Sleep last night</p>
                 </div>
-              </div>
-            </div>
-
-          </div>
-
-          {/* Recent History Table & Wellness Tip */}
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-            
-            {/* Medical History */}
-            <div className="lg:col-span-8 bg-white border border-slate-200 rounded-3xl p-6 shadow-sm overflow-x-auto">
-              <h3 className="text-sm font-bold text-slate-900 mb-4">Recent Medical History</h3>
-              <table className="w-full text-left text-xs font-medium text-slate-500">
-                <thead>
-                  <tr className="border-b border-slate-100 text-slate-400 uppercase text-[9px] font-bold">
-                    <th className="pb-3 pr-4">Procedure/Visit</th>
-                    <th className="pb-3 px-4">Date</th>
-                    <th className="pb-3 px-4">Doctor</th>
-                    <th className="pb-3 px-4">Status</th>
-                    <th className="pb-3 pl-4 text-right">Results</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 font-semibold text-slate-700">
-                  <tr>
-                    <td className="py-4 pr-4 text-slate-900">Blood Panel (Routine)</td>
-                    <td className="py-4 px-4 text-slate-500 font-medium">Oct 12, 2023</td>
-                    <td className="py-4 px-4 text-slate-500">Dr. Sarah Vane</td>
-                    <td className="py-4 px-4">
-                      <span className="bg-emerald-50 text-emerald-700 text-[9px] font-bold px-2.5 py-0.5 rounded-full">
-                        COMPLETED
-                      </span>
-                    </td>
-                    <td className="py-4 pl-4 text-right">
-                      <button className="text-slate-400 hover:text-slate-600">
-                        <svg className="w-4 h-4 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
-                      </button>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td className="py-4 pr-4 text-slate-900">Physical Examination</td>
-                    <td className="py-4 px-4 text-slate-500 font-medium">Sep 05, 2023</td>
-                    <td className="py-4 px-4 text-slate-500">Dr. Michael Chen</td>
-                    <td className="py-4 px-4">
-                      <span className="bg-emerald-50 text-emerald-700 text-[9px] font-bold px-2.5 py-0.5 rounded-full">
-                        COMPLETED
-                      </span>
-                    </td>
-                    <td className="py-4 pl-4 text-right">
-                      <button className="text-slate-400 hover:text-slate-600">
-                        <svg className="w-4 h-4 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
-                      </button>
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-
-            {/* Daily Wellness Tip */}
-            <div className="lg:col-span-4 bg-emerald-50 border border-emerald-100 rounded-3xl p-6 shadow-sm flex flex-col justify-between">
-              <div>
-                <span className="text-[10px] font-bold text-emerald-700 uppercase tracking-wider block mb-2">Daily Wellness Tip</span>
-                <p className="text-xs text-emerald-800 leading-relaxed font-semibold">
-                  Increasing your fiber intake by just 5g a day can significantly improve your metabolic health. Try adding some flax seeds or chia to your morning breakfast.
-                </p>
-              </div>
-              <div className="mt-6 flex justify-end">
-                <svg className="w-8 h-8 text-emerald-600/30" fill="currentColor" viewBox="0 0 24 24"><path d="M12.24 10.285V14.4h6.887" /></svg>
               </div>
             </div>
 
@@ -500,8 +549,133 @@ export default function PatientDashboard() {
 
         </div>
 
+        {/* QR Scanner Modal overlay */}
+        {qrOpen && (
+          <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+            <div className="bg-white rounded-3xl p-6 max-w-md w-full border border-slate-100 shadow-2xl relative">
+              <button 
+                onClick={stopCamera}
+                className="absolute top-4 right-4 w-8 h-8 rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 flex items-center justify-center font-bold text-xs"
+              >
+                ✕
+              </button>
+              <h3 className="text-base font-bold text-slate-900 mb-2">Scan Appointment QR</h3>
+              <p className="text-slate-500 text-[11px] mb-4">Position the doctor's consultation QR code inside the camera reticle.</p>
+              
+              {cameraError ? (
+                <div className="bg-red-50 text-red-700 text-xs p-3 rounded-lg border border-red-200 mb-4 font-semibold">
+                  {cameraError}
+                </div>
+              ) : (
+                <div className="w-full aspect-square bg-slate-950 rounded-2xl overflow-hidden relative border border-slate-800 flex items-center justify-center text-white text-xs mb-4">
+                  {/* Camera Video Stream */}
+                  <video id="dashboard-qr-video" autoPlay playsInline muted className="w-full h-full object-cover absolute inset-0" />
+                  
+                  {/* Reticle */}
+                  <div className="absolute inset-8 border-2 border-dashed border-[#0F62FE] rounded-xl pointer-events-none animate-pulse flex items-center justify-center">
+                    <div className="w-full h-0.5 bg-red-500 absolute animate-bounce" />
+                  </div>
+                  
+                  <span className="relative z-10 bg-black/50 px-3 py-1.5 rounded-full font-semibold text-[10px]">
+                    {scanning ? "Scanning..." : "Camera initialized"}
+                  </span>
+                </div>
+              )}
+
+              {scannedDetails ? (
+                <div className="bg-emerald-50 border border-emerald-100 p-4 rounded-2xl flex flex-col gap-2">
+                  <span className="text-emerald-800 text-xs font-bold">✓ Scan Successful!</span>
+                  <div className="text-[11px] text-slate-600 font-semibold flex flex-col gap-1">
+                    <div><strong>Doctor:</strong> {scannedDetails.doctor}</div>
+                    <div><strong>Room:</strong> {scannedDetails.room}</div>
+                    <div><strong>Scheduled:</strong> {scannedDetails.time}</div>
+                  </div>
+                  <button 
+                    onClick={() => {
+                      stopCamera();
+                      router.push("/patient/waiting-room");
+                    }}
+                    className="bg-[#0F62FE] hover:bg-[#0353E9] text-white text-xs font-bold py-2.5 px-4 rounded-xl mt-2 transition-all w-full"
+                  >
+                    Join Waiting Room
+                  </button>
+                </div>
+              ) : (
+                <button 
+                  onClick={startCamera}
+                  disabled={scanning}
+                  className="w-full bg-[#0F62FE] hover:bg-[#0353E9] text-white text-xs font-bold py-3.5 rounded-xl transition-all shadow-sm flex items-center justify-center gap-2 disabled:bg-blue-400"
+                >
+                  Start Scanning
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* SOS Modal overlay */}
+        {sosOpen && (
+          <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+            <div className="bg-white rounded-3xl p-6 max-w-sm w-full border border-slate-100 shadow-2xl relative">
+              <button 
+                onClick={() => {
+                  setSosOpen(false);
+                  setIsEditingPhone(false);
+                }}
+                className="absolute top-4 right-4 w-8 h-8 rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 flex items-center justify-center font-bold text-xs"
+              >
+                ✕
+              </button>
+              <h3 className="text-base font-bold text-slate-900 mb-2">Emergency Contact</h3>
+              <p className="text-slate-500 text-[11px] mb-4">You can trigger a direct phone call to your configured medical responder.</p>
+              
+              <div className="bg-red-50 border border-red-100 p-4 rounded-2xl flex flex-col gap-3 mb-4">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-bold text-red-700 uppercase tracking-wide">Emergency Number</span>
+                  <button 
+                    onClick={() => setIsEditingPhone(!isEditingPhone)} 
+                    className="text-xs text-red-600 hover:underline font-bold"
+                  >
+                    {isEditingPhone ? "Cancel" : "Change"}
+                  </button>
+                </div>
+                
+                {isEditingPhone ? (
+                  <div className="flex gap-2">
+                    <input 
+                      type="text" 
+                      value={tempPhone}
+                      onChange={e => setTempPhone(e.target.value)}
+                      className="flex-1 bg-white border border-red-200 px-3 py-1.5 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:border-red-500"
+                    />
+                    <button 
+                      onClick={savePhone}
+                      className="bg-red-600 hover:bg-red-700 text-white text-xs font-bold px-3 py-1.5 rounded-xl transition-all"
+                    >
+                      Save
+                    </button>
+                  </div>
+                ) : (
+                  <span className="text-lg font-extrabold text-slate-850 font-mono">{emergencyPhone}</span>
+                )}
+              </div>
+
+              <a 
+                href={`tel:${emergencyPhone}`}
+                className="w-full bg-red-600 hover:bg-red-700 text-white text-xs font-bold py-3.5 rounded-xl transition-all shadow-sm flex items-center justify-center gap-2 cursor-pointer text-center"
+              >
+                🚨 Call Now
+              </a>
+            </div>
+          </div>
+        )}
+
       </main>
 
+      {/* Footer */}
+      <footer className="bg-white border-t border-slate-200 py-6 px-6 text-center text-xs text-slate-400">
+        © 2026 Healix Healthcare. All rights reserved.
+      </footer>
     </div>
   );
 }

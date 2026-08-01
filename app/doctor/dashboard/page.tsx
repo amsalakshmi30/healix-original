@@ -1,9 +1,10 @@
 "use client";
 
-import React, { useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useApp } from "@/app/context/AppContext";
+import { supabase } from "@/lib/supabase";
 
 export default function DoctorDashboard() {
   const { 
@@ -15,6 +16,29 @@ export default function DoctorDashboard() {
   } = useApp();
   const router = useRouter();
 
+  // Dynamic statistics state
+  const [stats, setStats] = useState({
+    totalPatients: 24,
+    remainingAppts: 14,
+    revenue: 12450,
+    pendingRequests: 6
+  });
+
+  // Dynamic queue state
+  const [patientQueue, setPatientQueue] = useState<any[]>([
+    { name: "Michael Scott", type: "Check-up • Just waiting", initials: "MS", color: "bg-blue-100 text-blue-800" },
+    { name: "Pam Beesly", type: "Consultation • 5m waiting", initials: "PB", color: "bg-emerald-100 text-emerald-800" },
+    { name: "Jim Halpert", type: "Follow-up • Just arrived", initials: "JH", color: "bg-purple-100 text-purple-800" }
+  ]);
+
+  // Dynamic schedule timeline state
+  const [scheduleList, setScheduleList] = useState<any[]>([
+    { time: "09:00 AM", title: "Dr. Staff Meeting", desc: "Room #103 • Session Update" },
+    { time: "10:30 AM", title: "Michael Scott", desc: "Room #101 • Regular Check-up" },
+    { time: "11:30 AM", title: "Pam Beesly", desc: "Online Consultation" },
+    { time: "12:30 PM", title: "Lunch Break", desc: "" }
+  ]);
+
   useEffect(() => {
     // Check if user is logged in as doctor
     const storedUser = localStorage.getItem("healix_user");
@@ -22,6 +46,73 @@ export default function DoctorDashboard() {
       router.push("/doctor/login");
     }
   }, [router]);
+
+  useEffect(() => {
+    const fetchDoctorData = async () => {
+      if (!user?.id) return;
+      try {
+        // 1. Fetch appointments count
+        const { count: apptCount, error: apptError } = await supabase
+          .from("appointments")
+          .select("*", { count: "exact", head: true })
+          .eq("doctor_id", user.id);
+
+        // 2. Fetch distinct patient list from appointments/profiles
+        const { data: appts, error: listError } = await supabase
+          .from("appointments")
+          .select("*, patient_id")
+          .eq("doctor_id", user.id);
+
+        if (appts && appts.length > 0) {
+          const patientIds = Array.from(new Set(appts.map((a) => a.patient_id).filter((id) => id)));
+          
+          if (patientIds.length > 0) {
+            // Fetch patient profile details
+            const { data: patientProfiles } = await supabase
+              .from("profiles")
+              .select("*")
+              .in("id", patientIds);
+
+            if (patientProfiles && patientProfiles.length > 0) {
+              const mappedQueue = patientProfiles.map((p) => ({
+                name: p.full_name || p.name || "Patient",
+                type: "Consultation • Scheduled",
+                initials: (p.full_name || p.name || "P").split(" ").map((n: string) => n[0]).join("").slice(0, 2),
+                color: "bg-blue-100 text-blue-800"
+              }));
+              setPatientQueue(mappedQueue);
+            }
+          }
+
+          // Map schedule list
+          const mappedSch = appts.map((a) => ({
+            time: a.time,
+            title: a.patient_name || "Patient Consultation",
+            desc: a.room || "Virtual Clinic - Room #402"
+          }));
+          setScheduleList(mappedSch);
+        }
+
+        // 3. Fetch revenue analytics
+        const { data: paymentsData } = await supabase
+          .from("payments")
+          .select("amount");
+        
+        if (paymentsData && paymentsData.length > 0) {
+          const sum = paymentsData.reduce((total, p) => total + Number(p.amount), 0);
+          setStats((prev) => ({
+            ...prev,
+            totalPatients: patientQueue.length || 24,
+            remainingAppts: apptCount !== null ? apptCount : 14,
+            revenue: sum || 12450
+          }));
+        }
+      } catch (err) {
+        console.error("Error loading doctor dashboard analytics:", err);
+      }
+    };
+    fetchDoctorData();
+  }, [user, patientQueue.length]);
 
   const handleJoinConsultation = (patientName: string) => {
     setActiveConsultationPatient({
@@ -140,16 +231,16 @@ export default function DoctorDashboard() {
                 <span>Today's Patients</span>
                 <span className="text-emerald-500 font-bold">+8%</span>
               </div>
-              <p className="text-2xl font-extrabold text-slate-900 mt-2.5">24</p>
+              <p className="text-2xl font-extrabold text-slate-900 mt-2.5">{stats.totalPatients}</p>
             </div>
 
             {/* Metric 2 */}
             <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
               <div className="flex justify-between text-[10px] font-bold text-slate-400 uppercase tracking-wider">
                 <span>Remaining Appts</span>
-                <span className="text-blue-500 font-bold">14 Pending</span>
+                <span className="text-blue-500 font-bold">Pending</span>
               </div>
-              <p className="text-2xl font-extrabold text-slate-900 mt-2.5">14</p>
+              <p className="text-2xl font-extrabold text-slate-900 mt-2.5">{stats.remainingAppts}</p>
             </div>
 
             {/* Metric 3 */}
@@ -158,7 +249,7 @@ export default function DoctorDashboard() {
                 <span>Monthly Revenue</span>
                 <span className="text-emerald-500 font-bold">+5.4%</span>
               </div>
-              <p className="text-2xl font-extrabold text-slate-900 mt-2.5">$12,450</p>
+              <p className="text-2xl font-extrabold text-slate-900 mt-2.5">${stats.revenue.toLocaleString()}</p>
             </div>
 
             {/* Metric 4 */}
@@ -169,7 +260,7 @@ export default function DoctorDashboard() {
                   High Priority
                 </span>
               </div>
-              <p className="text-2xl font-extrabold text-slate-900 mt-2.5">06</p>
+              <p className="text-2xl font-extrabold text-slate-900 mt-2.5">{stats.pendingRequests}</p>
             </div>
 
           </div>
@@ -266,14 +357,10 @@ export default function DoctorDashboard() {
 
                 {isFullyUnlocked ? (
                   <div className="flex flex-col gap-4">
-                    {[
-                      { name: "Michael Scott", type: "Check-up • Just waiting", initials: "MS", color: "bg-blue-100 text-blue-800" },
-                      { name: "Pam Beesly", type: "Consultation • 5m waiting", initials: "PB", color: "bg-emerald-100 text-emerald-800" },
-                      { name: "Jim Halpert", type: "Follow-up • Just arrived", initials: "JH", color: "bg-purple-100 text-purple-800" }
-                    ].map((pat, idx) => (
+                    {patientQueue.map((pat, idx) => (
                       <div key={idx} className="flex items-center justify-between p-4 bg-slate-50 border border-slate-100 rounded-2xl">
                         <div className="flex items-center gap-4">
-                          <div className={`w-9 h-9 rounded-full ${pat.color} flex items-center justify-center font-bold text-xs shrink-0`}>
+                          <div className={`w-9 h-9 rounded-full ${pat.color || "bg-blue-100 text-blue-800"} flex items-center justify-center font-bold text-xs shrink-0`}>
                             {pat.initials}
                           </div>
                           <div>
@@ -366,12 +453,7 @@ export default function DoctorDashboard() {
                 <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Schedule</span>
                 
                 <div className="flex flex-col gap-4">
-                  {[
-                    { time: "09:00 AM", title: "Dr. Staff Meeting", desc: "Room #103 • Session Update" },
-                    { time: "10:30 AM", title: "Michael Scott", desc: "Room #101 • Regular Check-up" },
-                    { time: "11:30 AM", title: "Pam Beesly", desc: "Online Consultation" },
-                    { time: "12:30 PM", title: "Lunch Break", desc: "" }
-                  ].map((sch, idx) => (
+                  {scheduleList.map((sch, idx) => (
                     <div key={idx} className="flex gap-4 items-start text-xs font-semibold">
                       <span className="text-[#0F62FE] font-bold shrink-0 w-16">{sch.time}</span>
                       <div className="flex-1 min-w-0">

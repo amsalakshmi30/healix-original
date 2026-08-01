@@ -4,6 +4,7 @@ import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useApp } from "@/app/context/AppContext";
+import { supabase } from "@/lib/supabase";
 
 export default function DoctorLogin() {
   const { login, isLoggedIn, user } = useApp();
@@ -13,8 +14,9 @@ export default function DoctorLogin() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [isRegister, setIsRegister] = useState(false);
 
-  // Redirect if already logged in
+  // Redirect if already logged in professional
   useEffect(() => {
     if (isLoggedIn && user) {
       if (user.type === "doctor") {
@@ -25,7 +27,7 @@ export default function DoctorLogin() {
     }
   }, [isLoggedIn, user, router]);
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email) {
       setError("Please enter your professional email address.");
@@ -39,12 +41,91 @@ export default function DoctorLogin() {
     setLoading(true);
     setError("");
 
-    // Simulate login delay
-    setTimeout(() => {
-      login("doctor", email, "Dr. Julianne Smith");
+    try {
+      if (isRegister) {
+        // Sign up logic
+        const { error: signUpError } = await supabase.auth.signUp({
+          email,
+          password,
+          options: {
+            data: {
+              name: email.split("@")[0] || "Practitioner",
+              type: "doctor",
+              avatar_url: "/doc-julianne.jpg",
+            },
+          },
+        });
+        if (signUpError) throw signUpError;
+        alert("Practitioner registration successful! You can now log in.");
+        setIsRegister(false);
+      } else {
+        // Sign in logic
+        const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+          email,
+          password,
+        });
+        if (signInError) throw signInError;
+
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) throw new Error("Authentication failed. No user found.");
+
+        console.log(user.id);
+
+        let { data: profile, error: profileError } = await supabase
+          .from("profiles")
+          .select("*")
+          .eq("id", user.id)
+          .single();
+
+        console.log(profile);
+        if (profile) {
+          console.log(profile.role);
+        }
+
+        const userRole = (profile?.role || "").toLowerCase();
+
+        if (profileError || !profile || userRole !== "doctor") {
+          // Self-repair: assign doctor role in database
+          const { error: upsertError } = await supabase
+            .from("profiles")
+            .upsert({
+              id: user.id,
+              email: user.email,
+              full_name: user.user_metadata?.name || email.split("@")[0] || "Practitioner",
+              role: "doctor",
+              avatar_url: user.user_metadata?.avatar_url || "/doc-julianne.jpg"
+            });
+
+          if (upsertError) {
+            console.error("Failed to assign doctor role dynamically:", upsertError.message);
+            await supabase.auth.signOut();
+            throw new Error("Access denied. You do not have doctor privileges.");
+          }
+
+          // Fetch the updated profile details to be sure
+          const { data: updatedProfile, error: refetchError } = await supabase
+            .from("profiles")
+            .select("*")
+            .eq("id", user.id)
+            .single();
+
+          if (refetchError || !updatedProfile) {
+            await supabase.auth.signOut();
+            throw new Error("Access denied. You do not have doctor privileges.");
+          }
+          
+          profile = updatedProfile;
+        }
+
+        // Call login from AppContext
+        login("doctor", email, profile.full_name || profile.name || user.user_metadata?.name || email.split("@")[0]);
+        router.push("/doctor/dashboard");
+      }
+    } catch (err: any) {
+      setError(err.message || "An error occurred during authentication.");
+    } finally {
       setLoading(false);
-      router.push("/doctor/dashboard");
-    }, 800);
+    }
   };
 
   return (
@@ -113,18 +194,26 @@ export default function DoctorLogin() {
             
             {/* Tabs Selector */}
             <div className="flex gap-1.5 p-1 bg-slate-100 rounded-lg w-fit">
-              <button className="bg-white text-slate-900 text-sm font-semibold px-6 py-2 rounded-md shadow-sm">
+              <button 
+                type="button"
+                onClick={() => setIsRegister(false)}
+                className={`${!isRegister ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"} text-sm font-semibold px-6 py-2 rounded-md transition-all`}
+              >
                 Login
               </button>
-              <button className="text-slate-500 hover:text-slate-700 text-sm font-semibold px-6 py-2">
+              <button 
+                type="button"
+                onClick={() => setIsRegister(true)}
+                className={`${isRegister ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"} text-sm font-semibold px-6 py-2 rounded-md transition-all`}
+              >
                 Register
               </button>
             </div>
 
             {/* Intro */}
             <div>
-              <h3 className="text-2xl font-bold text-slate-950">Practitioner Login</h3>
-              <p className="text-slate-400 text-sm mt-1">Please enter your professional credentials to access your dashboard.</p>
+              <h3 className="text-2xl font-bold text-slate-950">{isRegister ? "Register Practitioner" : "Practitioner Login"}</h3>
+              <p className="text-slate-400 text-sm mt-1">{isRegister ? "Register a new doctor account to join the network." : "Please enter your professional credentials to access your dashboard."}</p>
             </div>
 
             {error && (
@@ -192,7 +281,7 @@ export default function DoctorLogin() {
                 disabled={loading}
                 className="w-full bg-[#008A5E] hover:bg-[#00704c] text-white font-semibold text-sm py-3 px-6 rounded-xl flex items-center justify-center gap-2 transition-all mt-2 shadow-sm disabled:bg-emerald-400"
               >
-                {loading ? "Authenticating..." : "Practitioner Sign In"}
+                {loading ? "Authenticating..." : isRegister ? "Register" : "Practitioner Sign In"}
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
               </button>
             </form>

@@ -36,9 +36,28 @@ export default function DoctorProfile() {
   const morningSlots = ["09:00 AM", "10:30 AM"];
   const afternoonSlots = ["02:00 PM", "03:30 PM", "04:45 PM", "05:30 PM"];
 
+  const hasDbSlots = doc.slots && Object.keys(doc.slots).length > 0;
+  
+  const dynamicDays = hasDbSlots 
+    ? Object.keys(doc.slots).map((key) => {
+        const parts = key.split(" ");
+        return { day: parts[0] || "MON", num: parts[1] || "21" };
+      })
+    : days;
+
+  const dbSlotsForDay = hasDbSlots ? (doc.slots[selectedDay] || []) : [];
+  
+  const dynamicMorningSlots = (hasDbSlots 
+    ? dbSlotsForDay.filter((s: string) => s.includes("AM") || s.startsWith("09:") || s.startsWith("10:") || s.startsWith("11:"))
+    : morningSlots) as string[];
+
+  const dynamicAfternoonSlots = (hasDbSlots
+    ? dbSlotsForDay.filter((s: string) => s.includes("PM") && !s.startsWith("09:") && !s.startsWith("10:") && !s.startsWith("11:"))
+    : afternoonSlots) as string[];
+
   const handleBook = () => {
     setSelectedSlot({
-      date: `Oct ${selectedDay.split(" ")[1]}, 2024`,
+      date: `Oct ${selectedDay.split(" ")[1] || "21"}, 2024`,
       time: selectedTime
     });
     router.push("/patient/book-appointment");
@@ -215,13 +234,18 @@ export default function DoctorProfile() {
 
               {/* Day slots list */}
               <div className="grid grid-cols-4 gap-2">
-                {days.map((item, idx) => {
+                {dynamicDays.map((item, idx) => {
                   const key = `${item.day} ${item.num}`;
                   const isActive = selectedDay === key;
                   return (
                     <button
                       key={idx}
-                      onClick={() => setSelectedDay(key)}
+                      onClick={() => {
+                        setSelectedDay(key);
+                        // Auto select first slot for day if db slots exist
+                        const firstSlot = doc.slots?.[key]?.[0];
+                        if (firstSlot) setSelectedTime(firstSlot);
+                      }}
                       className={`p-3 rounded-lg border flex flex-col items-center gap-1 transition-all ${isActive ? "bg-[#0F62FE] border-[#0F62FE] text-white" : "bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100"}`}
                     >
                       <span className="text-[9px] uppercase font-bold tracking-wider">{item.day}</span>
@@ -237,7 +261,7 @@ export default function DoctorProfile() {
                 <div className="flex flex-col gap-2">
                   <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Morning Slots</span>
                   <div className="grid grid-cols-2 gap-2">
-                    {morningSlots.map((time) => (
+                    {dynamicMorningSlots.map((time) => (
                       <button
                         key={time}
                         onClick={() => setSelectedTime(time)}
@@ -246,6 +270,9 @@ export default function DoctorProfile() {
                         {time}
                       </button>
                     ))}
+                    {dynamicMorningSlots.length === 0 && (
+                      <span className="col-span-2 text-center text-[10px] text-slate-400 py-2">No slots available</span>
+                    )}
                   </div>
                 </div>
 
@@ -253,7 +280,7 @@ export default function DoctorProfile() {
                 <div className="flex flex-col gap-2">
                   <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Afternoon Slots</span>
                   <div className="grid grid-cols-2 gap-2">
-                    {afternoonSlots.map((time) => {
+                    {dynamicAfternoonSlots.map((time) => {
                       const isDisabled = time === "05:30 PM"; // Disabled as in Figma
                       return (
                         <button
@@ -266,6 +293,9 @@ export default function DoctorProfile() {
                         </button>
                       );
                     })}
+                    {dynamicAfternoonSlots.length === 0 && (
+                      <span className="col-span-2 text-center text-[10px] text-slate-400 py-2">No slots available</span>
+                    )}
                   </div>
                 </div>
               </div>

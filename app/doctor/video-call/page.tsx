@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useApp } from "@/app/context/AppContext";
@@ -12,6 +12,9 @@ export default function DoctorVideoCall() {
   // Control toggles
   const [micMuted, setMicMuted] = useState(false);
   const [camOff, setCamOff] = useState(false);
+  const [mediaStream, setMediaStream] = useState<MediaStream | null>(null);
+  const [hasPermission, setHasPermission] = useState<boolean | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
 
   const pat = activeConsultationPatient || {
     name: "Liam Chen",
@@ -22,7 +25,68 @@ export default function DoctorVideoCall() {
     weight: "82 kg"
   };
 
+  const requestPermissions = async () => {
+    try {
+      setHasPermission(null);
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: true,
+        audio: true
+      });
+      setHasPermission(true);
+      setMediaStream(stream);
+      streamRef.current = stream;
+
+      // Apply initial toggles
+      const audioTrack = stream.getAudioTracks()[0];
+      if (audioTrack) audioTrack.enabled = !micMuted;
+
+      const videoTrack = stream.getVideoTracks()[0];
+      if (videoTrack) videoTrack.enabled = !camOff;
+
+      setTimeout(() => {
+        const videoEl = document.getElementById("doctor-self-video") as HTMLVideoElement;
+        if (videoEl) {
+          videoEl.srcObject = stream;
+        }
+      }, 100);
+    } catch (err) {
+      console.error("Camera/Mic access failed inside practitioner consultation:", err);
+      setHasPermission(false);
+    }
+  };
+
+  // Video and voice consultation camera setup on mount
+  useEffect(() => {
+    requestPermissions();
+    return () => {
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach((t) => t.stop());
+      }
+    };
+  }, []);
+
+  // Update track enabled state on control toggles
+  useEffect(() => {
+    if (mediaStream) {
+      const audioTrack = mediaStream.getAudioTracks()[0];
+      if (audioTrack) audioTrack.enabled = !micMuted;
+    }
+  }, [micMuted, mediaStream]);
+
+  useEffect(() => {
+    if (mediaStream) {
+      const videoTrack = mediaStream.getVideoTracks()[0];
+      if (videoTrack) videoTrack.enabled = !camOff;
+    }
+  }, [camOff, mediaStream]);
+
   const handleEndCall = () => {
+    if (mediaStream) {
+      mediaStream.getTracks().forEach((track) => track.stop());
+    }
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((track) => track.stop());
+    }
     router.push("/doctor/medication-details");
   };
 
@@ -38,13 +102,27 @@ export default function DoctorVideoCall() {
           <div className="flex-1 bg-slate-900 rounded-3xl overflow-hidden relative border border-slate-800 shadow-md">
             
             {/* Main Video (Patient Image / Placeholder) */}
-            <div className="absolute inset-0 bg-slate-950 flex flex-col items-center justify-center text-slate-500 font-semibold gap-3">
-              <div className="w-20 h-20 rounded-full bg-slate-800 text-white flex items-center justify-center font-bold text-2xl shadow-md border border-slate-700">
-                LC
+            {hasPermission === false ? (
+              <div className="absolute inset-0 bg-slate-950 flex flex-col items-center justify-center text-red-500 font-semibold gap-3 p-6 text-center">
+                <span className="text-3xl">⚠️</span>
+                <p className="text-sm font-bold text-white">Camera & Microphone Access Denied</p>
+                <p className="text-xs text-slate-400 max-w-xs">Please allow camera and microphone permissions in your browser settings to proceed with the video consultation.</p>
+                <button 
+                  onClick={requestPermissions}
+                  className="mt-2 bg-[#0F62FE] hover:bg-[#0353E9] text-white font-bold text-xs py-2.5 px-6 rounded-xl transition-all shadow-sm cursor-pointer"
+                >
+                  Retry Permission Request
+                </button>
               </div>
-              <p className="text-sm font-bold text-white">Liam Chen (Patient Video Feed Active)</p>
-              <p className="text-[10px] text-emerald-400 font-bold uppercase tracking-wider animate-pulse">● Live Telehealth Feed</p>
-            </div>
+            ) : (
+              <div className="absolute inset-0 bg-slate-950 flex flex-col items-center justify-center text-slate-500 font-semibold gap-3">
+                <div className="w-20 h-20 rounded-full bg-slate-800 text-white flex items-center justify-center font-bold text-2xl shadow-md border border-slate-700">
+                  {pat.name.split(" ").slice(-1)[0][0] || "P"}
+                </div>
+                <p className="text-sm font-bold text-white">{pat.name} (Patient Video Feed Active)</p>
+                <p className="text-[10px] text-emerald-400 font-bold uppercase tracking-wider animate-pulse">● Live Telehealth Feed</p>
+              </div>
+            )}
 
             {/* Video overlay headers */}
             <div className="absolute top-6 left-6 z-10 flex justify-between w-full pr-12">
@@ -57,9 +135,9 @@ export default function DoctorVideoCall() {
             </div>
 
             {/* Inset Self View */}
-            {!camOff && (
-              <div className="absolute top-6 right-6 w-32 aspect-video bg-slate-800 border-2 border-white/20 rounded-2xl overflow-hidden shadow-lg z-10 flex items-center justify-center text-[10px] text-white font-bold">
-                You (Practitioner)
+            {!camOff && hasPermission === true && (
+              <div className="absolute top-6 right-6 w-32 aspect-video bg-slate-800 border-2 border-white/20 rounded-2xl overflow-hidden shadow-lg z-10">
+                <video id="doctor-self-video" autoPlay playsInline muted className="w-full h-full object-cover bg-slate-905" />
               </div>
             )}
 
@@ -70,7 +148,8 @@ export default function DoctorVideoCall() {
                 {/* Mic */}
                 <button 
                   onClick={() => setMicMuted(!micMuted)} 
-                  className={`w-11 h-11 rounded-full flex flex-col items-center justify-center border transition-all text-white ${micMuted ? 'bg-red-500/80 border-red-600' : 'bg-white/10 border-white/10 hover:bg-white/20'}`}
+                  disabled={hasPermission !== true}
+                  className={`w-11 h-11 rounded-full flex flex-col items-center justify-center border transition-all text-white disabled:opacity-50 disabled:cursor-not-allowed ${micMuted ? 'bg-red-500/80 border-red-600' : 'bg-white/10 border-white/10 hover:bg-white/20'}`}
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" /></svg>
                   <span className="text-[7px] uppercase font-bold mt-0.5">{micMuted ? 'Muted' : 'Mute'}</span>
@@ -79,7 +158,8 @@ export default function DoctorVideoCall() {
                 {/* Camera */}
                 <button 
                   onClick={() => setCamOff(!camOff)} 
-                  className={`w-11 h-11 rounded-full flex flex-col items-center justify-center border transition-all text-white ${camOff ? 'bg-red-500/80 border-red-600' : 'bg-white/10 border-white/10 hover:bg-white/20'}`}
+                  disabled={hasPermission !== true}
+                  className={`w-11 h-11 rounded-full flex flex-col items-center justify-center border transition-all text-white disabled:opacity-50 disabled:cursor-not-allowed ${camOff ? 'bg-red-500/80 border-red-600' : 'bg-white/10 border-white/10 hover:bg-white/20'}`}
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
                   <span className="text-[7px] uppercase font-bold mt-0.5">{camOff ? 'Off' : 'Camera'}</span>
@@ -125,7 +205,7 @@ export default function DoctorVideoCall() {
               
               <div className="flex items-center gap-4">
                 <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center font-bold text-slate-700 text-sm">
-                  {pat.name.split(" ").slice(-1)[0][0]}
+                  {pat.name.split(" ").slice(-1)[0][0] || "P"}
                 </div>
                 <div>
                   <h4 className="text-sm font-bold text-slate-900">{pat.name}</h4>

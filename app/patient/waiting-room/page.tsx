@@ -12,6 +12,7 @@ export default function WaitingRoom() {
   // Local camera/mic toggles
   const [micOn, setMicOn] = useState(false);
   const [camOn, setCamOn] = useState(false);
+  const [mediaStream, setMediaStream] = useState<MediaStream | null>(null);
 
   // Countdown timer in seconds (starts at 8 seconds for a fast, responsive demo!)
   const [secondsLeft, setSecondsLeft] = useState(8);
@@ -28,6 +29,38 @@ export default function WaitingRoom() {
     }
   }, [secondsLeft]);
 
+  // Handle camera & mic streaming
+  useEffect(() => {
+    let activeStream: MediaStream | null = null;
+    const getMedia = async () => {
+      if (camOn || micOn) {
+        try {
+          activeStream = await navigator.mediaDevices.getUserMedia({
+            video: camOn,
+            audio: micOn
+          });
+          setMediaStream(activeStream);
+          setTimeout(() => {
+            const videoEl = document.getElementById("self-preview-video") as HTMLVideoElement;
+            if (videoEl && camOn) {
+              videoEl.srcObject = activeStream;
+            }
+          }, 100);
+        } catch (err) {
+          console.error("Camera/Mic access denied:", err);
+        }
+      } else {
+        setMediaStream(null);
+      }
+    };
+    getMedia();
+    return () => {
+      if (activeStream) {
+        activeStream.getTracks().forEach((track) => track.stop());
+      }
+    };
+  }, [camOn, micOn]);
+
   const formatTimer = (secs: number) => {
     const mins = Math.floor(secs / 60);
     const remain = secs % 60;
@@ -35,6 +68,9 @@ export default function WaitingRoom() {
   };
 
   const handleJoin = () => {
+    if (mediaStream) {
+      mediaStream.getTracks().forEach((track) => track.stop());
+    }
     router.push("/patient/video-call");
   };
 
@@ -75,13 +111,7 @@ export default function WaitingRoom() {
             
             {/* Camera feed overlay */}
             {camOn ? (
-              <div className="absolute inset-0 bg-slate-800 flex items-center justify-center text-slate-400 font-bold text-sm">
-                {/* Simulated webcam video feed */}
-                <div className="text-center flex flex-col items-center gap-3">
-                  <span className="w-12 h-12 rounded-full bg-slate-700 animate-pulse flex items-center justify-center text-white">📷</span>
-                  Webcam Active (Sarah Jenkins Self-Preview)
-                </div>
-              </div>
+              <video id="self-preview-video" autoPlay playsInline muted className="w-full h-full object-cover absolute inset-0 bg-slate-950" />
             ) : (
               <div className="absolute inset-0 bg-slate-950 flex flex-col items-center justify-center text-slate-500 font-semibold gap-3">
                 <span className="text-2xl">📷</span>
