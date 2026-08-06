@@ -146,6 +146,22 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     };
     setUser(newUser);
     localStorage.setItem("healix_user", JSON.stringify(newUser));
+
+    if (type === "doctor") {
+      const savedVerification = localStorage.getItem(`healix_verification_${email}`) as any;
+      if (savedVerification) {
+        setDoctorVerification(savedVerification);
+      } else {
+        setDoctorVerification("unverified");
+      }
+      
+      const savedProfile = localStorage.getItem(`healix_profile_${email}`);
+      if (savedProfile) {
+        setDoctorProfile(JSON.parse(savedProfile));
+      } else {
+        setDoctorProfile(null);
+      }
+    }
   };
 
   const logout = () => {
@@ -194,14 +210,23 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const handleSetDoctorVerification = (status: "unverified" | "pending" | "verified") => {
     setDoctorVerification(status);
     localStorage.setItem("healix_doctor_verification", status);
+    if (user && user.type === "doctor") {
+      localStorage.setItem(`healix_verification_${user.email}`, status);
+    }
   };
 
   const handleSetDoctorProfile = (profile: DoctorProfile | null) => {
     setDoctorProfile(profile);
     if (profile) {
       localStorage.setItem("healix_doctor_profile", JSON.stringify(profile));
+      if (user && user.type === "doctor") {
+        localStorage.setItem(`healix_profile_${user.email}`, JSON.stringify(profile));
+      }
     } else {
       localStorage.removeItem("healix_doctor_profile");
+      if (user && user.type === "doctor") {
+        localStorage.removeItem(`healix_profile_${user.email}`);
+      }
     }
   };
 

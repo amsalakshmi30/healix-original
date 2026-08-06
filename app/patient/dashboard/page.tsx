@@ -23,9 +23,10 @@ export default function PatientDashboard() {
   });
 
   const [dashboardSearch, setDashboardSearch] = useState("");
-  const [activeModal, setActiveModal] = useState<"none" | "lab" | "sos" | "share">("none");
+  const [activeModal, setActiveModal] = useState<"none" | "lab" | "sos" | "share" | "alerts">("none");
   const [emailToShare, setEmailToShare] = useState("");
   const [shareSuccess, setShareSuccess] = useState(false);
+  const [historyTab, setHistoryTab] = useState<"records" | "appointments">("records");
 
   useEffect(() => {
     // Check if user is logged in
@@ -108,10 +109,16 @@ export default function PatientDashboard() {
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
               Prescriptions
             </Link>
-            <Link href="#" className="flex items-center gap-3 px-3.5 py-2.5 rounded-lg hover:bg-slate-50 transition-colors">
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" /></svg>
-              Health Alerts
-            </Link>
+            <button 
+              onClick={() => setActiveModal("alerts")} 
+              className="flex items-center justify-between w-full px-3.5 py-2.5 rounded-lg hover:bg-slate-50 transition-colors text-left"
+            >
+              <span className="flex items-center gap-3">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" /></svg>
+                Health Alerts
+              </span>
+              <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse mr-1" />
+            </button>
 
             {/* Book Button */}
             <Link 
@@ -165,9 +172,12 @@ export default function PatientDashboard() {
               />
             </div>
             
-            <button className="relative w-9 h-9 border border-slate-200 rounded-lg flex items-center justify-center text-slate-500 hover:bg-slate-50">
+            <button 
+              onClick={() => setActiveModal("alerts")}
+              className="relative w-9 h-9 border border-slate-200 rounded-lg flex items-center justify-center text-slate-500 hover:bg-slate-50"
+            >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" /></svg>
-              <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 bg-red-500 rounded-full" />
+              <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 bg-red-500 rounded-full animate-pulse" />
             </button>
 
             {/* Mobile Sidebar Trigger / Logout */}
@@ -272,13 +282,21 @@ export default function PatientDashboard() {
                 </div>
 
                 <div className="flex gap-4 items-center mt-3">
-                  <Link 
-                    href="/patient/waiting-room"
-                    className="bg-white text-blue-900 hover:bg-slate-100 font-bold px-6 py-2.5 rounded-xl text-xs flex items-center gap-2 transition-all shadow-sm"
+                  <button 
+                    onClick={async (e) => {
+                      e.preventDefault();
+                      try {
+                        await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+                      } catch (err) {
+                        console.warn("Hardware permission denied or not supported:", err);
+                      }
+                      router.push("/patient/waiting-room");
+                    }}
+                    className="bg-white text-blue-900 hover:bg-slate-100 font-bold px-6 py-2.5 rounded-xl text-xs flex items-center gap-2 transition-all shadow-sm cursor-pointer"
                   >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
                     Join Now
-                  </Link>
+                  </button>
                   <span className="text-[11px] text-slate-300">Appointment scheduled for {nextAppt.time}</span>
                 </div>
               </div>
@@ -340,7 +358,15 @@ export default function PatientDashboard() {
                   <h3 className="text-sm font-bold text-slate-900">Medication Timeline</h3>
                   <p className="text-[10px] text-slate-400 font-medium">Daily prescription tracker</p>
                 </div>
-                <button className="text-xs font-bold text-[#0F62FE] hover:underline">Full Schedule</button>
+                <div className="flex items-center gap-4">
+                  {Object.values(meds).filter(v => !v).length > 0 && (
+                    <span className="bg-red-50 text-red-700 text-[10px] font-bold px-2.5 py-1 rounded-full flex items-center gap-1.5 animate-pulse">
+                      <span className="w-1.5 h-1.5 bg-red-500 rounded-full" />
+                      {Object.values(meds).filter(v => !v).length} Missed today
+                    </span>
+                  )}
+                  <button className="text-xs font-bold text-[#0F62FE] hover:underline">Full Schedule</button>
+                </div>
               </div>
 
               <div className="flex flex-col gap-4">
@@ -449,50 +475,129 @@ export default function PatientDashboard() {
             
             {/* Medical History */}
             <div id="medical-history" className="scroll-mt-6 lg:col-span-8 bg-white border border-slate-200 rounded-3xl p-6 shadow-sm overflow-x-auto">
-              <h3 className="text-sm font-bold text-slate-900 mb-4">Recent Medical History</h3>
-              <table className="w-full text-left text-xs font-medium text-slate-500">
-                <thead>
-                  <tr className="border-b border-slate-100 text-slate-400 uppercase text-[9px] font-bold">
-                    <th className="pb-3 pr-4">Procedure/Visit</th>
-                    <th className="pb-3 px-4">Date</th>
-                    <th className="pb-3 px-4">Doctor</th>
-                    <th className="pb-3 px-4">Status</th>
-                    <th className="pb-3 pl-4 text-right">Results</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 font-semibold text-slate-700">
-                  <tr>
-                    <td className="py-4 pr-4 text-slate-900">Blood Panel (Routine)</td>
-                    <td className="py-4 px-4 text-slate-500 font-medium">Oct 12, 2023</td>
-                    <td className="py-4 px-4 text-slate-500">Dr. Sarah Vane</td>
-                    <td className="py-4 px-4">
-                      <span className="bg-emerald-50 text-emerald-700 text-[9px] font-bold px-2.5 py-0.5 rounded-full">
-                        COMPLETED
-                      </span>
-                    </td>
-                    <td className="py-4 pl-4 text-right">
-                      <button className="text-slate-400 hover:text-slate-600">
-                        <svg className="w-4 h-4 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
-                      </button>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td className="py-4 pr-4 text-slate-900">Physical Examination</td>
-                    <td className="py-4 px-4 text-slate-500 font-medium">Sep 05, 2023</td>
-                    <td className="py-4 px-4 text-slate-500">Dr. Michael Chen</td>
-                    <td className="py-4 px-4">
-                      <span className="bg-emerald-50 text-emerald-700 text-[9px] font-bold px-2.5 py-0.5 rounded-full">
-                        COMPLETED
-                      </span>
-                    </td>
-                    <td className="py-4 pl-4 text-right">
-                      <button className="text-slate-400 hover:text-slate-600">
-                        <svg className="w-4 h-4 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
-                      </button>
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 pb-4 border-b border-slate-100">
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900">Medical Records & History</h3>
+                  <p className="text-[10px] text-slate-400 font-medium">Your historical health data</p>
+                </div>
+                <div className="flex gap-1.5 p-1 bg-slate-100 rounded-lg text-[9px] font-bold">
+                  <button 
+                    onClick={() => setHistoryTab("records")} 
+                    className={`px-3 py-1.5 rounded transition-all ${historyTab === "records" ? "bg-white text-slate-800 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
+                  >
+                    Procedures
+                  </button>
+                  <button 
+                    onClick={() => setHistoryTab("appointments")} 
+                    className={`px-3 py-1.5 rounded transition-all ${historyTab === "appointments" ? "bg-white text-slate-800 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
+                  >
+                    Appointments
+                  </button>
+                </div>
+              </div>
+
+              {historyTab === "records" ? (
+                <table className="w-full text-left text-xs font-medium text-slate-500">
+                  <thead>
+                    <tr className="border-b border-slate-100 text-slate-400 uppercase text-[9px] font-bold">
+                      <th className="pb-3 pr-4">Procedure/Visit</th>
+                      <th className="pb-3 px-4">Date</th>
+                      <th className="pb-3 px-4">Doctor</th>
+                      <th className="pb-3 px-4">Status</th>
+                      <th className="pb-3 pl-4 text-right">Results</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 font-semibold text-slate-700">
+                    <tr>
+                      <td className="py-4 pr-4 text-slate-900">Blood Panel (Routine)</td>
+                      <td className="py-4 px-4 text-slate-500 font-medium">Oct 12, 2023</td>
+                      <td className="py-4 px-4 text-slate-500">Dr. Sarah Vane</td>
+                      <td className="py-4 px-4">
+                        <span className="bg-emerald-50 text-emerald-700 text-[9px] font-bold px-2.5 py-0.5 rounded-full">
+                          COMPLETED
+                        </span>
+                      </td>
+                      <td className="py-4 pl-4 text-right">
+                        <button onClick={() => alert("Downloading Blood Panel report...")} className="text-slate-400 hover:text-slate-600">
+                          <svg className="w-4 h-4 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                        </button>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td className="py-4 pr-4 text-slate-900">Physical Examination</td>
+                      <td className="py-4 px-4 text-slate-500 font-medium">Sep 05, 2023</td>
+                      <td className="py-4 px-4 text-slate-500">Dr. Michael Chen</td>
+                      <td className="py-4 px-4">
+                        <span className="bg-emerald-50 text-emerald-700 text-[9px] font-bold px-2.5 py-0.5 rounded-full">
+                          COMPLETED
+                        </span>
+                      </td>
+                      <td className="py-4 pl-4 text-right">
+                        <button onClick={() => setActiveModal("lab")} className="text-slate-400 hover:text-slate-600">
+                          <svg className="w-4 h-4 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
+                        </button>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              ) : (
+                <table className="w-full text-left text-xs font-medium text-slate-500">
+                  <thead>
+                    <tr className="border-b border-slate-100 text-slate-400 uppercase text-[9px] font-bold">
+                      <th className="pb-3 pr-4">Appointment</th>
+                      <th className="pb-3 px-4">Date & Time</th>
+                      <th className="pb-3 px-4">Doctor</th>
+                      <th className="pb-3 px-4">Status</th>
+                      <th className="pb-3 pl-4 text-right">Prescription</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 font-semibold text-slate-700">
+                    <tr>
+                      <td className="py-4 pr-4 text-slate-900">Cardiology Consultation</td>
+                      <td className="py-4 px-4 text-slate-500 font-medium">Oct 10, 2023 • 2:30 PM</td>
+                      <td className="py-4 px-4 text-slate-500">Dr. Sarah Jenkins</td>
+                      <td className="py-4 px-4">
+                        <span className="bg-emerald-50 text-emerald-700 text-[9px] font-bold px-2.5 py-0.5 rounded-full">
+                          COMPLETED
+                        </span>
+                      </td>
+                      <td className="py-4 pl-4 text-right">
+                        <Link href="/patient/prescription" className="text-[#0F62FE] hover:underline">
+                          View RX
+                        </Link>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td className="py-4 pr-4 text-slate-900">Dental Checkup</td>
+                      <td className="py-4 px-4 text-slate-500 font-medium">Aug 15, 2023 • 11:00 AM</td>
+                      <td className="py-4 px-4 text-slate-500">Dr. Marcus Thorne</td>
+                      <td className="py-4 px-4">
+                        <span className="bg-emerald-50 text-emerald-700 text-[9px] font-bold px-2.5 py-0.5 rounded-full">
+                          COMPLETED
+                        </span>
+                      </td>
+                      <td className="py-4 pl-4 text-right">
+                        <span className="text-slate-400 font-normal">None</span>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td className="py-4 pr-4 text-slate-900">General Wellness Check</td>
+                      <td className="py-4 px-4 text-slate-500 font-medium">Jun 22, 2023 • 10:00 AM</td>
+                      <td className="py-4 px-4 text-slate-500">Dr. Alexander Sterling</td>
+                      <td className="py-4 px-4">
+                        <span className="bg-emerald-50 text-emerald-700 text-[9px] font-bold px-2.5 py-0.5 rounded-full">
+                          COMPLETED
+                        </span>
+                      </td>
+                      <td className="py-4 pl-4 text-right">
+                        <Link href="/patient/prescription" className="text-[#0F62FE] hover:underline">
+                          View RX
+                        </Link>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              )}
             </div>
 
             {/* Daily Wellness Tip */}
@@ -514,6 +619,187 @@ export default function PatientDashboard() {
 
       </main>
 
+      {activeModal !== "none" && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-3xl border border-slate-200 max-w-md w-full p-6 shadow-xl relative overflow-hidden">
+            
+            {/* SOS Modal */}
+            {activeModal === "sos" && (
+              <div className="flex flex-col items-center text-center gap-6 py-4">
+                <div className="w-16 h-16 rounded-full bg-red-100 text-red-600 flex items-center justify-center text-3xl animate-pulse">
+                  🚨
+                </div>
+                <div>
+                  <h3 className="text-xl font-bold text-slate-900">Emergency SOS Contact</h3>
+                  <p className="text-xs text-slate-400 mt-2">Connecting you directly to the hospital helpline and medical dispatch.</p>
+                </div>
+                <div className="bg-slate-50 border border-slate-100 rounded-xl p-4 w-full text-left flex flex-col gap-2.5 text-xs font-semibold text-slate-600">
+                  <div className="flex justify-between">
+                    <span>Helpline</span>
+                    <span className="text-slate-900 font-bold">Healix Emergency Dispatch</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Number</span>
+                    <span className="text-slate-900 font-bold">+1 (800) 555-0199</span>
+                  </div>
+                </div>
+                <div className="flex flex-col gap-2 w-full">
+                  <a 
+                    href="tel:+18005550199"
+                    className="w-full bg-red-600 hover:bg-red-700 text-white font-bold text-sm py-3.5 rounded-xl transition-all shadow-md flex items-center justify-center gap-2"
+                  >
+                    📞 Dial Helpline Now
+                  </a>
+                  <button 
+                    onClick={() => setActiveModal("none")} 
+                    className="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs py-3 rounded-xl transition-all"
+                  >
+                    Dismiss Alert
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Lab Results Modal */}
+            {activeModal === "lab" && (
+              <div className="flex flex-col gap-4">
+                <div className="flex justify-between items-center pb-3 border-b border-slate-100">
+                  <h3 className="text-base font-bold text-slate-900">Lab Results & Reports</h3>
+                  <button onClick={() => setActiveModal("none")} className="text-slate-400 hover:text-slate-600 text-lg">×</button>
+                </div>
+                
+                <div className="flex flex-col gap-3 max-h-[300px] overflow-y-auto pr-1">
+                  {[
+                    { test: "Complete Blood Count (CBC)", date: "Oct 12, 2023", result: "Normal (Hb: 14.2 g/dL)", status: "normal" },
+                    { test: "Lipid Panel (Cholesterol)", date: "Sep 05, 2023", result: "LDL: 130 mg/dL (Slightly Elevated)", status: "elevated" },
+                    { test: "Metabolic Panel (Renal/Hepatic)", date: "Aug 20, 2023", result: "Normal (Creatinine: 0.9 mg/dL)", status: "normal" },
+                    { test: "Thyroid Panel (TSH)", date: "Jul 15, 2023", result: "TSH: 2.4 mIU/L (Normal)", status: "normal" }
+                  ].map((item, idx) => (
+                    <div key={idx} className="p-3.5 bg-slate-50 border border-slate-100 rounded-xl flex items-center justify-between text-xs">
+                      <div>
+                        <h4 className="font-bold text-slate-900">{item.test}</h4>
+                        <span className="text-[10px] text-slate-400 font-semibold">{item.date} • {item.result}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${item.status === 'normal' ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}>
+                          {item.status.toUpperCase()}
+                        </span>
+                        <a 
+                          href="#" 
+                          onClick={(e) => { e.preventDefault(); alert(`Downloading report for ${item.test}`); }}
+                          className="text-slate-400 hover:text-slate-600"
+                        >
+                          📥
+                        </a>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                
+                <button 
+                  onClick={() => setActiveModal("none")} 
+                  className="w-full bg-[#0F62FE] hover:bg-[#0353E9] text-white font-bold text-xs py-3 rounded-xl transition-all mt-2"
+                >
+                  Close Records
+                </button>
+              </div>
+            )}
+
+            {/* Health Alerts Modal */}
+            {activeModal === "alerts" && (
+              <div className="flex flex-col gap-4">
+                <div className="flex justify-between items-center pb-3 border-b border-slate-100">
+                  <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                    🚨 Active Health Alerts
+                  </h3>
+                  <button onClick={() => setActiveModal("none")} className="text-slate-400 hover:text-slate-600 text-lg">×</button>
+                </div>
+                
+                <div className="flex flex-col gap-3">
+                  <div className="p-4 bg-amber-50 border border-amber-200 rounded-2xl flex gap-3">
+                    <span className="text-xl">⚠️</span>
+                    <div>
+                      <h4 className="text-xs font-bold text-amber-900">Cardio Vitals Alert</h4>
+                      <p className="text-[10px] text-amber-700 mt-1 font-medium leading-relaxed">
+                        Your heart rate has averaged 76 bpm over the past 48 hours, which is normal, but your systolic blood pressure reading from yesterday was 135 mmHg (pre-hypertension range). Monitor salt intake.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="p-4 bg-blue-50 border border-blue-200 rounded-2xl flex gap-3">
+                    <span className="text-xl">💉</span>
+                    <div>
+                      <h4 className="text-xs font-bold text-blue-900">Immunization Reminder</h4>
+                      <p className="text-[10px] text-blue-700 mt-1 font-medium leading-relaxed">
+                        Your annual Influenza (Flu) vaccine shot is due for this season. Please schedule an immunization appointment in your portal.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+                
+                <button 
+                  onClick={() => setActiveModal("none")} 
+                  className="w-full bg-[#0F62FE] hover:bg-[#0353E9] text-white font-bold text-xs py-3 rounded-xl transition-all mt-2"
+                >
+                  Acknowledge Alerts
+                </button>
+              </div>
+            )}
+
+            {/* Share Record Modal */}
+            {activeModal === "share" && (
+              <div className="flex flex-col gap-4">
+                <div className="flex justify-between items-center pb-3 border-b border-slate-100">
+                  <h3 className="text-base font-bold text-slate-900">Share Health Record</h3>
+                  <button onClick={() => setActiveModal("none")} className="text-slate-400 hover:text-slate-600 text-lg">×</button>
+                </div>
+                
+                {!shareSuccess ? (
+                  <div className="flex flex-col gap-4">
+                    <p className="text-xs text-slate-500 font-semibold leading-relaxed">
+                      Generate a secure, encrypted link to share your complete medical history with another hospital, specialist, or insurance provider.
+                    </p>
+                    <div className="flex flex-col gap-1.5">
+                      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Recipient's Email Address</label>
+                      <input 
+                        type="email" 
+                        value={emailToShare}
+                        onChange={(e) => setEmailToShare(e.target.value)}
+                        placeholder="doctor@hospital.org"
+                        className="w-full px-3.5 py-2 border border-slate-200 rounded-xl text-xs bg-slate-50 focus:outline-none focus:bg-white"
+                        required
+                      />
+                    </div>
+                    <button 
+                      onClick={() => {
+                        if (emailToShare) {
+                          setShareSuccess(true);
+                          setTimeout(() => {
+                            setShareSuccess(false);
+                            setEmailToShare("");
+                            setActiveModal("none");
+                          }, 3000);
+                        } else {
+                          alert("Please enter a valid email.");
+                        }
+                      }}
+                      className="w-full bg-[#0F62FE] hover:bg-[#0353E9] text-white font-bold text-xs py-3 rounded-xl transition-all"
+                    >
+                      Generate Secure Share Link
+                    </button>
+                  </div>
+                ) : (
+                  <div className="py-6 text-center flex flex-col items-center gap-3">
+                    <span className="text-2xl">🔗</span>
+                    <h4 className="text-xs font-bold text-slate-800">Secure link generated & sent!</h4>
+                    <p className="text-[10px] text-slate-400 font-semibold">Shared encrypted records securely with: {emailToShare}</p>
+                  </div>
+                )}
+              </div>
+            )}
+
+          </div>
+        </div>
+      )}
     </div>
   );
 }

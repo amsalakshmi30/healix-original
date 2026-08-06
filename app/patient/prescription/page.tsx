@@ -327,14 +327,12 @@ export default function PrescriptionCart() {
             <p className="text-xs text-slate-400 -mt-3">Scan the secure checkout QR scanner to complete order.</p>
 
             <div className="w-48 h-48 bg-slate-50 border border-slate-200 rounded-2xl flex items-center justify-center relative overflow-hidden shadow-inner">
-              <div className="w-36 h-36 bg-slate-900 flex flex-wrap p-2 rounded relative">
-                <div className="absolute top-2 left-2 w-8 h-8 border-4 border-white bg-slate-900" />
-                <div className="absolute top-2 right-2 w-8 h-8 border-4 border-white bg-slate-900" />
-                <div className="absolute bottom-2 left-2 w-8 h-8 border-4 border-white bg-slate-900" />
-                <div className="w-full h-full border border-dashed border-white/20 flex items-center justify-center text-white/50 text-[10px] font-bold font-mono">
-                  HEALIX-RX
-                </div>
-              </div>
+              {/* Real QR Pattern */}
+              <img 
+                src="/qr-code.png" 
+                alt="Payment QR Code" 
+                className="w-36 h-36 object-contain relative z-10 rounded-lg"
+              />
               <div className="absolute left-0 right-0 h-1 bg-red-500 shadow-[0_0_10px_#ef4444] animate-bounce" style={{ top: '25%' }} />
             </div>
 

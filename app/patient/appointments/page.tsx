@@ -16,6 +16,7 @@ interface Doctor {
   fee: string;
   avatar: string;
   desc: string;
+  ageGroups: string[];
 }
 
 export default function DoctorSearch() {
@@ -41,6 +42,7 @@ export default function DoctorSearch() {
       fee: "$150.00",
       avatar: "/doc-alex.jpg",
       desc: "Dr. Alexander Sterling is a board-certified cardiologist with over 15 years of experience in interventional cardiology and preventative heart health.",
+      ageGroups: ["Adult Care", "Senior Care"]
     },
     {
       id: "jenkins",
@@ -53,6 +55,7 @@ export default function DoctorSearch() {
       fee: "$180.00",
       avatar: "/doc-sarah.jpg",
       desc: "Passionate about preventative heart health and long term vascular wellness.",
+      ageGroups: ["Adult Care", "Senior Care"]
     },
     {
       id: "thorne",
@@ -65,6 +68,7 @@ export default function DoctorSearch() {
       fee: "$210.00",
       avatar: "/doc-marcus.jpg",
       desc: "Specializing in sleep disorders, migraine therapies, and neuro-oncology diagnostics.",
+      ageGroups: ["Teen Care", "Adult Care", "Senior Care"]
     },
     {
       id: "rodriguez",
@@ -77,6 +81,7 @@ export default function DoctorSearch() {
       fee: "$195.00",
       avatar: "/doc-elena.jpg",
       desc: "Expert in minimally invasive pediatric care and neonatal surgery protocols.",
+      ageGroups: ["Pediatric"]
     },
     {
       id: "chen",
@@ -89,6 +94,7 @@ export default function DoctorSearch() {
       fee: "$160.00",
       avatar: "/doc-chen.jpg",
       desc: "Specializing in aesthetic dermatology, skin pathology, and oncological treatments.",
+      ageGroups: ["Pediatric", "Teen Care", "Adult Care", "Senior Care"]
     }
   ];
 
@@ -101,8 +107,9 @@ export default function DoctorSearch() {
     const matchesSearch = doc.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
                           doc.specialization.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesSpec = selectedSpecialization === "All Specializations" || 
-                        doc.specialization.includes(selectedSpecialization);
-    return matchesSearch && matchesSpec;
+                        doc.specialization.toLowerCase().includes(selectedSpecialization.toLowerCase());
+    const matchesAge = doc.ageGroups.includes(selectedAgeGroup);
+    return matchesSearch && matchesSpec && matchesAge;
   });
 
   return (

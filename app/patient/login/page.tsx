@@ -4,6 +4,12 @@ import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useApp } from "@/app/context/AppContext";
+import { 
+  dbRegisterPatient, 
+  dbAuthenticatePatient, 
+  dbPatientEmailExists,
+  dbDoctorEmailExists
+} from "@/app/utils/supabase";
 
 export default function PatientLogin() {
   const { login, isLoggedIn, user } = useApp();
@@ -29,7 +35,7 @@ export default function PatientLogin() {
     }
   }, [isLoggedIn, user, router]);
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email) {
       setError("Please enter your email address.");
@@ -44,15 +50,31 @@ export default function PatientLogin() {
     setError("");
     setForgotPasswordMsg("");
 
-    // Simulate login delay
-    setTimeout(() => {
-      login("patient", email, "Sarah Jenkins");
+    try {
+      const isDoc = await dbDoctorEmailExists(email);
+      if (isDoc) {
+        setError("This account is registered as a practitioner. Please use the Doctor Portal.");
+        setLoading(false);
+        return;
+      }
+
+      const patient = await dbAuthenticatePatient(email, password);
+      if (!patient) {
+        setError("Invalid email or password. Please try again.");
+        setLoading(false);
+        return;
+      }
+
+      login("patient", email, patient.name);
       setLoading(false);
       router.push("/patient/dashboard");
-    }, 800);
+    } catch (err) {
+      setError("An unexpected error occurred. Please try again.");
+      setLoading(false);
+    }
   };
 
-  const handleRegister = (e: React.FormEvent) => {
+  const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name) {
       setError("Please enter your full name.");
@@ -75,12 +97,31 @@ export default function PatientLogin() {
     setError("");
     setForgotPasswordMsg("");
 
-    // Simulate registration delay
-    setTimeout(() => {
+    try {
+      const existsPat = await dbPatientEmailExists(email);
+      if (existsPat) {
+        setError("An account with this email already exists. Please login instead.");
+        setLoading(false);
+        return;
+      }
+
+      const existsDoc = await dbDoctorEmailExists(email);
+      if (existsDoc) {
+        setError("This email is registered as a practitioner. Please use the Doctor Portal.");
+        setLoading(false);
+        return;
+      }
+
+      const newPatient = { name, email, password };
+      await dbRegisterPatient(newPatient);
+
       login("patient", email, name);
       setLoading(false);
       router.push("/patient/dashboard");
-    }, 800);
+    } catch (err) {
+      setError("Failed to register. Please try again.");
+      setLoading(false);
+    }
   };
 
   const handleForgotPassword = (e: React.MouseEvent) => {
