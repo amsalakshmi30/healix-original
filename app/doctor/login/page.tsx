@@ -15,6 +15,7 @@ export default function DoctorLogin() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [isRegister, setIsRegister] = useState(false);
+  const [fullName, setFullName] = useState("");
 
   // Redirect if already logged in professional
   useEffect(() => {
@@ -49,14 +50,15 @@ export default function DoctorLogin() {
           password,
           options: {
             data: {
-              name: email.split("@")[0] || "Practitioner",
+              name: fullName || email.split("@")[0] || "Practitioner",
+              full_name: fullName || email.split("@")[0] || "Practitioner",
               type: "doctor",
               avatar_url: "/doc-julianne.jpg",
             },
           },
         });
         if (signUpError) throw signUpError;
-        login("doctor", email, email.split("@")[0]);
+        login("doctor", email, fullName || email.split("@")[0]);
         router.push("/doctor/profile-registration");
       } else {
         // Sign in logic
@@ -91,7 +93,7 @@ export default function DoctorLogin() {
             .upsert({
               id: user.id,
               email: user.email,
-              full_name: user.user_metadata?.name || email.split("@")[0] || "Practitioner",
+              full_name: fullName || user.user_metadata?.name || email.split("@")[0] || "Practitioner",
               role: "doctor",
               avatar_url: user.user_metadata?.avatar_url || "/doc-julianne.jpg"
             });
@@ -224,6 +226,26 @@ export default function DoctorLogin() {
 
             {/* Form */}
             <form onSubmit={handleLogin} className="flex flex-col gap-4">
+              {isRegister && (
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-xs font-bold text-slate-700" htmlFor="fullname-doctor">Full Name</label>
+                  <div className="relative">
+                    <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-400">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
+                    </span>
+                    <input
+                      type="text"
+                      id="fullname-doctor"
+                      value={fullName}
+                      onChange={(e) => setFullName(e.target.value)}
+                      placeholder="Dr. Sarah Jenkins"
+                      className="w-full pl-10 pr-4 py-2.5 rounded-lg border border-slate-200 text-sm focus:outline-none focus:border-[#008A5E]"
+                      required={isRegister}
+                    />
+                  </div>
+                </div>
+              )}
+
               <div className="flex flex-col gap-1.5">
                 <label className="text-xs font-bold text-slate-700" htmlFor="doctor-email">Work Email Address</label>
                 <div className="relative">

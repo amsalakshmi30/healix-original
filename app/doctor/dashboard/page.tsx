@@ -40,12 +40,10 @@ export default function DoctorDashboard() {
   ]);
 
   useEffect(() => {
-    // Check if user is logged in as doctor
-    const storedUser = localStorage.getItem("healix_user");
-    if (!storedUser) {
+    if (!user) {
       router.push("/doctor/login");
     }
-  }, [router]);
+  }, [user, router]);
 
   useEffect(() => {
     const fetchDoctorData = async () => {
@@ -64,7 +62,7 @@ export default function DoctorDashboard() {
           .eq("doctor_id", user.id);
 
         if (appts && appts.length > 0) {
-          const patientIds = Array.from(new Set(appts.map((a) => a.patient_id).filter((id) => id)));
+          const patientIds = Array.from(new Set(appts.map((a: any) => a.patient_id).filter((id: any) => id)));
           
           if (patientIds.length > 0) {
             // Fetch patient profile details
@@ -74,7 +72,7 @@ export default function DoctorDashboard() {
               .in("id", patientIds);
 
             if (patientProfiles && patientProfiles.length > 0) {
-              const mappedQueue = patientProfiles.map((p) => ({
+              const mappedQueue = patientProfiles.map((p: any) => ({
                 name: p.full_name || p.name || "Patient",
                 type: "Consultation • Scheduled",
                 initials: (p.full_name || p.name || "P").split(" ").map((n: string) => n[0]).join("").slice(0, 2),
@@ -85,7 +83,7 @@ export default function DoctorDashboard() {
           }
 
           // Map schedule list
-          const mappedSch = appts.map((a) => ({
+          const mappedSch = appts.map((a: any) => ({
             time: a.time,
             title: a.patient_name || "Patient Consultation",
             desc: a.room || "Virtual Clinic - Room #402"
@@ -99,7 +97,7 @@ export default function DoctorDashboard() {
           .select("amount");
         
         if (paymentsData && paymentsData.length > 0) {
-          const sum = paymentsData.reduce((total, p) => total + Number(p.amount), 0);
+          const sum = paymentsData.reduce((total: number, p: any) => total + Number(p.amount), 0);
           setStats((prev) => ({
             ...prev,
             totalPatients: patientQueue.length || 24,
@@ -148,7 +146,7 @@ export default function DoctorDashboard() {
           {/* Doctor Profile Header banner */}
           <Link href="/doctor/profile-registration" className="flex items-center gap-3 p-3 bg-slate-50 border border-slate-100 rounded-xl hover:bg-slate-100/70 transition-all cursor-pointer w-full text-left">
             <div className="w-10 h-10 rounded-full bg-emerald-100 text-[#008A5E] flex items-center justify-center font-bold text-sm shrink-0">
-              JS
+              {(user?.name || "Dr. Julianne Smith").split(" ").filter(Boolean).map((n: string) => n[0]).join("").slice(0, 2).toUpperCase()}
             </div>
             <div>
               <h4 className="text-xs font-bold text-slate-900">{user?.name || "Dr. Julianne Smith"}</h4>

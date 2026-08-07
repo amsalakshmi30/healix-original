@@ -249,7 +249,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             .order("created_at", { ascending: false });
 
           if (data && data.length > 0) {
-            const formatted: Appointment[] = data.map((item) => ({
+            const formatted: Appointment[] = data.map((item: any) => ({
               doctorName: item.doctor_name || "Doctor",
               doctorSpecialization: item.doctor_specialization || "",
               doctorAvatar: item.doctor_avatar || "/doc-sarah.jpg",
@@ -285,7 +285,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             .eq("status", "pending");
 
           if (data && data.length > 0) {
-            const formatted: PrescriptionItem[] = data.map((item) => ({
+            const formatted: PrescriptionItem[] = data.map((item: any) => ({
               id: item.id,
               name: item.medicine_name,
               dosage: item.dosage,

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useApp } from "@/app/context/AppContext";
 import { supabase } from "@/lib/supabase";
+import { getMediaStreamWithFallback } from "@/app/utils/mediaHelper";
 
 export default function PatientDashboard() {
   const { user, logout, appointments } = useApp();
@@ -35,6 +36,9 @@ export default function PatientDashboard() {
   const [emergencyPhone, setEmergencyPhone] = useState("+919876543210");
   const [isEditingPhone, setIsEditingPhone] = useState(false);
   const [tempPhone, setTempPhone] = useState("+919876543210");
+  const [labResultsOpen, setLabResultsOpen] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [healthAlertsOpen, setHealthAlertsOpen] = useState(false);
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -55,12 +59,10 @@ export default function PatientDashboard() {
   };
 
   useEffect(() => {
-    // Check if user is logged in
-    const storedUser = localStorage.getItem("healix_user");
-    if (!storedUser) {
+    if (!user) {
       router.push("/patient/login");
     }
-  }, [router]);
+  }, [user, router]);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -82,7 +84,7 @@ export default function PatientDashboard() {
     setScanning(true);
     setScannedDetails(null);
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+      const { stream } = await getMediaStreamWithFallback({ video: { facingMode: "environment" } });
       setQrStream(stream);
       setTimeout(() => {
         const videoEl = document.getElementById("dashboard-qr-video") as HTMLVideoElement;
@@ -239,18 +241,18 @@ export default function PatientDashboard() {
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
               Appointments
             </Link>
-            <Link href="#" className="flex items-center gap-3 px-3.5 py-2.5 rounded-lg hover:bg-slate-50 transition-colors">
+            <button onClick={() => setHistoryOpen(true)} className="flex items-center gap-3 px-3.5 py-2.5 rounded-lg hover:bg-slate-50 transition-colors w-full text-left">
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
               History
-            </Link>
+            </button>
             <Link href="/patient/prescription" className="flex items-center gap-3 px-3.5 py-2.5 rounded-lg hover:bg-slate-50 transition-colors">
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
               Prescriptions
             </Link>
-            <Link href="#" className="flex items-center gap-3 px-3.5 py-2.5 rounded-lg hover:bg-slate-50 transition-colors">
+            <button onClick={() => setHealthAlertsOpen(true)} className="flex items-center gap-3 px-3.5 py-2.5 rounded-lg hover:bg-slate-50 transition-colors w-full text-left">
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" /></svg>
               Health Alerts
-            </Link>
+            </button>
           </nav>
         </div>
 
@@ -410,7 +412,7 @@ export default function PatientDashboard() {
                   <span className="text-xs font-bold text-slate-800">Refill Rx</span>
                 </Link>
 
-                <div className="flex flex-col gap-3 p-4 bg-slate-50 border border-slate-100 rounded-xl hover:bg-blue-50/50 hover:border-blue-100 transition-all cursor-pointer">
+                <div onClick={() => setLabResultsOpen(true)} className="flex flex-col gap-3 p-4 bg-slate-50 border border-slate-100 rounded-xl hover:bg-blue-50/50 hover:border-blue-100 transition-all cursor-pointer">
                   <div className="w-8 h-8 rounded-lg bg-blue-100 text-[#0F62FE] flex items-center justify-center">
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
                   </div>
@@ -666,6 +668,124 @@ export default function PatientDashboard() {
               >
                 🚨 Call Now
               </a>
+            </div>
+          </div>
+        )}
+
+        {/* Lab Results Modal */}
+        {labResultsOpen && (
+          <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+            <div className="bg-white rounded-3xl p-6 max-w-md w-full border border-slate-100 shadow-2xl relative">
+              <button 
+                onClick={() => setLabResultsOpen(false)}
+                className="absolute top-4 right-4 w-8 h-8 rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 flex items-center justify-center font-bold text-xs"
+              >
+                ✕
+              </button>
+              <h3 className="text-base font-bold text-slate-900 mb-2">Latest Lab Results</h3>
+              <p className="text-slate-500 text-[11px] mb-4">Laboratory blood work reports from Quest Diagnostics, dated July 28, 2026.</p>
+              
+              <div className="flex flex-col gap-3 max-h-[300px] overflow-y-auto pr-1">
+                {[
+                  { name: "Blood Glucose (Fasting)", value: "92 mg/dL", range: "70-100 mg/dL", status: "Normal", color: "bg-emerald-50 text-emerald-700 border-emerald-100" },
+                  { name: "Hemoglobin A1c", value: "5.4%", range: "< 5.7%", status: "Normal", color: "bg-emerald-50 text-emerald-700 border-emerald-100" },
+                  { name: "Total Cholesterol", value: "185 mg/dL", range: "< 200 mg/dL", status: "Normal", color: "bg-emerald-50 text-emerald-700 border-emerald-100" },
+                  { name: "Triglycerides", value: "130 mg/dL", range: "< 150 mg/dL", status: "Normal", color: "bg-emerald-50 text-emerald-700 border-emerald-100" },
+                  { name: "Vitamin D, 25-Hydroxy", value: "24 ng/mL", range: "30-100 ng/mL", status: "Low Warning", color: "bg-amber-50 text-amber-700 border-amber-200" },
+                  { name: "White Blood Cells (WBC)", value: "5.8 K/uL", range: "4.5-11.0 K/uL", status: "Normal", color: "bg-emerald-50 text-emerald-700 border-emerald-100" }
+                ].map((lab, idx) => (
+                  <div key={idx} className="flex justify-between items-center p-3.5 bg-slate-50 border border-slate-100 rounded-2xl">
+                    <div className="flex flex-col gap-0.5">
+                      <span className="text-xs font-bold text-slate-800">{lab.name}</span>
+                      <span className="text-[10px] text-slate-400 font-semibold">Normal range: {lab.range}</span>
+                    </div>
+                    <div className="flex flex-col items-end gap-1">
+                      <span className="text-sm font-extrabold text-slate-900">{lab.value}</span>
+                      <span className={`text-[8px] font-bold px-1.5 py-0.5 rounded border ${lab.color}`}>{lab.status}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Medical History Modal */}
+        {historyOpen && (
+          <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+            <div className="bg-white rounded-3xl p-6 max-w-md w-full border border-slate-100 shadow-2xl relative">
+              <button 
+                onClick={() => setHistoryOpen(false)}
+                className="absolute top-4 right-4 w-8 h-8 rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 flex items-center justify-center font-bold text-xs"
+              >
+                ✕
+              </button>
+              <h3 className="text-base font-bold text-slate-900 mb-2">Medical History & Encounters</h3>
+              <p className="text-slate-500 text-[11px] mb-4">Historical record of medical diagnoses, checkups, and vaccinations.</p>
+              
+              <div className="flex flex-col gap-4 max-h-[300px] overflow-y-auto pr-1">
+                <div>
+                  <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block mb-2">Past Consultations</span>
+                  <div className="flex flex-col gap-2">
+                    {[
+                      { date: "June 12, 2026", type: "Annual Physical checkup", provider: "Dr. Julianne Smith", status: "Completed" },
+                      { date: "May 05, 2026", type: "Dental Hygiene checkup", provider: "Dr. Ray (Healix Dental)", status: "Completed" },
+                      { date: "January 14, 2026", type: "Skin Pathology checkup", provider: "Dr. David Chen", status: "Completed" }
+                    ].map((visit, idx) => (
+                      <div key={idx} className="p-3 bg-slate-50 border border-slate-100 rounded-xl flex justify-between items-center">
+                        <div className="text-[11px] text-slate-600 font-semibold flex flex-col gap-0.5">
+                          <span className="text-xs font-bold text-slate-800">{visit.type}</span>
+                          <span>{visit.provider} • {visit.date}</span>
+                        </div>
+                        <span className="text-[8px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-100 px-1.5 py-0.5 rounded">{visit.status}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block mb-2">Active Conditions & Operations</span>
+                  <div className="flex flex-wrap gap-1.5">
+                    {["Mild Hypertension (2025)", "Seasonal Allergies", "Appendectomy (2020)"].map((cond, idx) => (
+                      <span key={idx} className="bg-slate-100 text-slate-700 border border-slate-200/80 px-2.5 py-1 rounded-lg text-[10px] font-bold">
+                        {cond}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Health Alerts Modal */}
+        {healthAlertsOpen && (
+          <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+            <div className="bg-white rounded-3xl p-6 max-w-sm w-full border border-slate-100 shadow-2xl relative">
+              <button 
+                onClick={() => setHealthAlertsOpen(false)}
+                className="absolute top-4 right-4 w-8 h-8 rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 flex items-center justify-center font-bold text-xs"
+              >
+                ✕
+              </button>
+              <h3 className="text-base font-bold text-slate-900 mb-2">Active Health Alerts</h3>
+              <p className="text-slate-500 text-[11px] mb-4">Personalized recommendations and clinical reminders.</p>
+              
+              <div className="flex flex-col gap-3">
+                {[
+                  { text: "Vitamin D level is slightly low (24 ng/mL). Daily D3 supplementation recommended.", type: "Warning", icon: "⚠️", color: "bg-amber-50 text-amber-800 border-amber-200" },
+                  { text: "Upcoming Booster: Tdap vaccination booster is recommended this month.", type: "Reminder", icon: "🔔", color: "bg-blue-50 text-blue-800 border-blue-200" },
+                  { text: "High pollen counts reported in your area. Keep your albuterol inhaler close.", type: "Pollen Warning", icon: "💡", color: "bg-emerald-50 text-emerald-800 border-emerald-200" }
+                ].map((alertItem, idx) => (
+                  <div key={idx} className={`p-4 border rounded-2xl flex gap-3 items-start ${alertItem.color}`}>
+                    <span className="text-lg leading-none shrink-0">{alertItem.icon}</span>
+                    <div className="flex flex-col gap-0.5">
+                      <span className="text-[10px] font-extrabold uppercase tracking-wide">{alertItem.type}</span>
+                      <span className="text-xs font-bold leading-relaxed">{alertItem.text}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         )}

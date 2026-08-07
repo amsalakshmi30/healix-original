@@ -4,6 +4,7 @@ import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useApp } from "@/app/context/AppContext";
+import { getMediaStreamWithFallback } from "@/app/utils/mediaHelper";
 
 export default function WaitingRoom() {
   const { logout } = useApp();
@@ -35,10 +36,11 @@ export default function WaitingRoom() {
     const getMedia = async () => {
       if (camOn || micOn) {
         try {
-          activeStream = await navigator.mediaDevices.getUserMedia({
+          const { stream } = await getMediaStreamWithFallback({
             video: camOn,
             audio: micOn
           });
+          activeStream = stream;
           setMediaStream(activeStream);
           setTimeout(() => {
             const videoEl = document.getElementById("self-preview-video") as HTMLVideoElement;

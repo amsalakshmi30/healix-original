@@ -15,6 +15,7 @@ export default function PatientLogin() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [isRegister, setIsRegister] = useState(false);
+  const [fullName, setFullName] = useState("");
 
   // Redirect if already logged in (no await inside useEffect)
   useEffect(() => {
@@ -49,7 +50,8 @@ export default function PatientLogin() {
           password,
           options: {
             data: {
-              name: email.split("@")[0] || "Patient",
+              name: fullName || email.split("@")[0] || "Patient",
+              full_name: fullName || email.split("@")[0] || "Patient",
               type: "patient",
               role: "patient",
               phone_number: "+1 (555) 019-2834",
@@ -82,7 +84,7 @@ export default function PatientLogin() {
                 age: 34,
                 gender: "Female",
                 role: "patient",
-                full_name: signInData.user.user_metadata?.name || email.split("@")[0] || "Patient"
+                full_name: fullName || signInData.user.user_metadata?.name || email.split("@")[0] || "Patient"
               });
           } catch (updateErr) {
             console.error("Error populating profile fields:", updateErr);
@@ -196,6 +198,26 @@ export default function PatientLogin() {
 
             {/* Form */}
             <form onSubmit={handleLogin} className="flex flex-col gap-4">
+              {isRegister && (
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-xs font-bold text-slate-700" htmlFor="fullname-input">Full Name</label>
+                  <div className="relative">
+                    <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-400">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
+                    </span>
+                    <input
+                      type="text"
+                      id="fullname-input"
+                      value={fullName}
+                      onChange={(e) => setFullName(e.target.value)}
+                      placeholder="Sarah Jenkins"
+                      className="w-full pl-10 pr-4 py-2.5 rounded-lg border border-slate-200 text-sm focus:outline-none focus:border-[#0F62FE]"
+                      required={isRegister}
+                    />
+                  </div>
+                </div>
+              )}
+
               <div className="flex flex-col gap-1.5">
                 <label className="text-xs font-bold text-slate-700" htmlFor="email-input">Email Address</label>
                 <div className="relative">

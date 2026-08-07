@@ -4,6 +4,7 @@ import React, { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useApp } from "@/app/context/AppContext";
+import { getMediaStreamWithFallback } from "@/app/utils/mediaHelper";
 
 interface ChatMsg {
   sender: "doctor" | "patient";
@@ -75,7 +76,7 @@ export default function DoctorVideoCall() {
   const requestPermissions = async () => {
     try {
       setHasPermission(null);
-      const stream = await navigator.mediaDevices.getUserMedia({
+      const { stream } = await getMediaStreamWithFallback({
         video: true,
         audio: true
       });

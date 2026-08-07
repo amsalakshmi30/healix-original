@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useApp } from "@/app/context/AppContext";
 import { supabase } from "@/lib/supabase";
+import { getMediaStreamWithFallback } from "@/app/utils/mediaHelper";
 
 interface ChatMessage {
   sender: "doctor" | "patient";
@@ -34,10 +35,11 @@ export default function VideoCall() {
     const startMedia = async () => {
       if (!camOff) {
         try {
-          activeStream = await navigator.mediaDevices.getUserMedia({
+          const { stream } = await getMediaStreamWithFallback({
             video: true,
             audio: !micMuted
           });
+          activeStream = stream;
           setMediaStream(activeStream);
           setTimeout(() => {
             const videoEl = document.getElementById("call-self-video") as HTMLVideoElement;

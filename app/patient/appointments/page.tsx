@@ -28,6 +28,7 @@ export default function DoctorSearch() {
   const [selectedAgeGroup, setSelectedAgeGroup] = useState("Adult Care");
   const [selectedTab, setSelectedTab] = useState("General");
   const [selectedRating, setSelectedRating] = useState(4.0);
+  const [selectedExperience, setSelectedExperience] = useState("All");
 
   // Sample Doctor Data aligning with Figma mockups
   const doctors: Doctor[] = [
@@ -131,12 +132,53 @@ export default function DoctorSearch() {
 
   const activeDoctorsList = dbDoctors.length > 0 ? dbDoctors : doctors;
 
+  const matchesAgeGroup = (doc: Doctor) => {
+    const spec = doc.specialization.toLowerCase();
+    if (selectedAgeGroup === "Pediatric") {
+      return spec.includes("pediatric");
+    }
+    if (selectedAgeGroup === "Teen Care") {
+      return spec.includes("dermatology") || spec.includes("neurology") || spec.includes("dermatologist") || spec.includes("pediatric");
+    }
+    if (selectedAgeGroup === "Adult Care") {
+      return spec.includes("cardiologist") || spec.includes("cardiology") || spec.includes("general") || spec.includes("neurology");
+    }
+    if (selectedAgeGroup === "Senior Care") {
+      return spec.includes("cardiologist") || spec.includes("cardiology") || spec.includes("general") || spec.includes("neurology");
+    }
+    return true;
+  };
+
+  const matchesExperience = (doc: Doctor) => {
+    if (selectedExperience === "All") return true;
+    
+    const match = doc.experience.match(/(\d+)/);
+    if (!match) return true;
+    const years = parseInt(match[1]);
+    
+    if (selectedExperience === "0-5 yrs") {
+      return years <= 5;
+    }
+    if (selectedExperience === "5-10 yrs") {
+      return years > 5 && years <= 10;
+    }
+    if (selectedExperience === "10-15 yrs") {
+      return years > 10 && years <= 15;
+    }
+    if (selectedExperience === "15+ yrs") {
+      return years > 15;
+    }
+    return true;
+  };
+
   const filteredDoctors = activeDoctorsList.filter((doc) => {
     const matchesSearch = doc.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
                           doc.specialization.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesSpec = selectedSpecialization === "All Specializations" || 
                         doc.specialization.includes(selectedSpecialization);
-    return matchesSearch && matchesSpec;
+    const matchesAge = matchesAgeGroup(doc);
+    const matchesExp = matchesExperience(doc);
+    return matchesSearch && matchesSpec && matchesAge && matchesExp;
   });
 
   return (
@@ -178,6 +220,8 @@ export default function DoctorSearch() {
                 setSelectedSpecialization("All Specializations");
                 setSearchQuery("");
                 setSelectedRating(4.0);
+                setSelectedExperience("All");
+                setSelectedAgeGroup("Adult Care");
               }} 
               className="text-[10px] font-bold text-slate-400 hover:text-[#0F62FE]"
             >
@@ -210,14 +254,14 @@ export default function DoctorSearch() {
             <input type="range" min="50" max="250" className="w-full accent-[#0F62FE]" defaultValue="180" />
           </div>
 
-          {/* Experience Filter */}
           <div className="flex flex-col gap-2">
             <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Experience</label>
             <div className="flex flex-wrap gap-2">
-              {["0-5 yrs", "5-10 yrs", "10-15 yrs", "15+ yrs"].map((exp, idx) => (
+              {["All", "0-5 yrs", "5-10 yrs", "10-15 yrs", "15+ yrs"].map((exp, idx) => (
                 <button 
                   key={idx} 
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold border ${exp === "10-15 yrs" ? "bg-blue-50 text-[#0F62FE] border-blue-200" : "bg-slate-50 text-slate-600 border-slate-200/80"} hover:bg-slate-100 transition-colors`}
+                  onClick={() => setSelectedExperience(exp)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold border ${selectedExperience === exp ? "bg-blue-50 text-[#0F62FE] border-blue-200" : "bg-slate-50 text-slate-600 border-slate-200/80"} hover:bg-slate-100 transition-colors`}
                 >
                   {exp}
                 </button>
